@@ -2,7 +2,7 @@
 
 This project holds the exercises and our solutions of the course Reinforcement Learning for Robotics.
 
-### Memebers:
+### Members:
 * Mun Seng Phoon
 * Peter Koppany Kocsis
 * Zhaobo Xu
