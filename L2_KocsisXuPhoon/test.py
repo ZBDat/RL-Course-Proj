@@ -2,7 +2,7 @@ from typing import Tuple
 
 import numpy as np
 import random
-
+import matplotlib.pyplot as plt
 
 class GridEnvironment():
     # TODO For Mun Seng
@@ -21,7 +21,7 @@ class GridEnvironment():
         self.shape = grid_size
         self.nS = grid_size[0] * grid_size[1]
         self.nA = len(self.actions)
-        
+
     def get_reward(self, state):
         """
         :param state: tuple (i, j)
@@ -66,10 +66,10 @@ class GridEnvironment():
         reward = self.get_reward(next_state)
 
         return next_state, reward
-    
+
     def turn_right(self, action):
         return self.actionsList[(self.actionsList.index(action) + 2) % len(self.actionsList)]
-    
+
     def turn_left(self, action):
         return self.actionsList[(self.actionsList.index(action) + 3) % len(self.actionsList)]
 
@@ -82,7 +82,7 @@ class GridEnvironment():
         t3 = [0.1, self.step(state, self.turn_left(action))]
 
         return [t1, t2, t3]
-    
+
     def bellman_expectation(self, state_values, state, action, discount=0.9):
         """
         Makes a one step lookahead and applies the bellman expectation equation to the state
@@ -103,7 +103,7 @@ class GridEnvironment():
         calculated_values.append((action, value))
 
         return calculated_values
-    
+
     def get_all_states(self):
         """
         :return: l = list of accessible states
@@ -112,7 +112,7 @@ class GridEnvironment():
         l = [(i, j) for i, y in enumerate(initial_grid) for j, x in enumerate(y) if (i, j) not in self.walls]
 
         return l
-    
+
     def print_policy(self, p):
         """
         Print the policy in grid form
@@ -124,7 +124,7 @@ class GridEnvironment():
                 if a == ' ':
                     print(" # |", end='')
                 else:
-                    print(" {a} |".format(a=a+1), end='')
+                    print(" {a} |".format(a=a + 1), end='')
             print("")
 
 
@@ -178,9 +178,8 @@ def policy_iteration():
                             new_a = v[0]
 
                     new_a_1 = np.argmax(action_values)
-                
+
                 if new_a != policy[s]: policy[s] = new_a
-        
 
     print("============= FINAL RESULT ============")
     print("Policy Iteration")
@@ -195,12 +194,72 @@ def exercise_1():
     pass
 
 
-def exercise_2():
+def exercise_2(gamma=0.9, a=0.01, b=5):
     # TODO For Zhaobo
     # Implement SARSA
-    pass
+    env = GridEnvironment()
+    state_list = env.get_all_states()
+    action_values = np.random.rand(env.nS-1, env.nA)
+    action_values_new = np.zeros([env.nS-1, env.nA])
+    policy = np.zeros(env.nS-1, dtype=int)
+
+    state = 7
+    action = policy[state]
+    num_iters = 0
+    err = []
+
+    while True:
+        eta = 1 / (a * num_iters + b)
+        next_state, reward = env.step(state_list[state], action)
+        next_action = epsilon_greedy(action_values[state_list.index(next_state)], epsilon=0.6)
+        q = reward + gamma * action_values[state_list.index(next_state), next_action]
+        action_values_new[state][action] = action_values[state][action] + eta * (q - action_values[state][action])
+
+        err.append(np.sum(np.power(action_values-action_values_new, 2)))
+
+        if np.allclose(action_values_new, action_values):
+            break
+        else:
+            action_values[state][action] = action_values_new[state][action]
+            state = state_list.index(next_state)
+            policy[state] = next_action
+            action = policy[state]
+
+        num_iters += 1
+
+    policy = np.argmax(action_values, axis=1)
+
+    error = np.array(err)
+    iters = np.array(range(num_iters+1))
+
+    print(num_iters)
+    print(action_values)
+    print(policy)
+    plt.plot(iters, error)
+    plt.show()
+
+    return action_values, policy
+
+
+def epsilon_greedy(action_values_of_state: np.ndarray, epsilon):
+    """
+    :param action_values: action values to the current state
+    :param epsilon: the greedy parameter
+    :return: the action selected
+    """
+    if (epsilon < 1) and (epsilon > 0):
+        p = np.random.rand()
+        if p <= epsilon:
+            action = np.argmax(action_values_of_state)
+        else:
+            action = np.random.randint(low=0, high=4)
+        return action
+
+    else:
+        print("epsilon out of range!")
+        return None
 
 
 if __name__ == "__main__":
     # test
-    policy_iteration()
+    exercise_2()
