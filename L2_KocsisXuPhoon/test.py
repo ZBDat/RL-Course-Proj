@@ -10,11 +10,11 @@ class GridEnvironment():
 
     def __init__(self, grid_size=(3, 4)):
         """
-        :param state: Initial state
         :param shape: grid size
         """
-        # available actions
+        # available actions (dict)
         self.actions = {0: [-1, 0], 1: [1, 0], 2: [0, -1], 3: [0, 1]}
+        # list of actions (list)
         self.actionsList = list(self.actions.keys())
         self.walls = [(1, 1)]
         # Total number of states
@@ -23,6 +23,9 @@ class GridEnvironment():
         self.nA = len(self.actions)
         
     def get_reward(self, state):
+        """
+        :param state: tuple (i, j)
+        """
         # reward function
         if state == (0, 3):
             reward = 1
@@ -40,10 +43,12 @@ class GridEnvironment():
         0 | 1 | 2| 3|
         1 |
         2 |
-        :param action: up, down, left, right
+        :param state: tuple (i, j)
+        :param action: int 0, 1, 2, 3
         :return: Tuple of next state and reward
         """
 
+        # get the action items (coords) from the action dict
         action = self.actions.get(action)
         # move to next state base on action
         next_state = (state[0] + action[0], state[1] + action[1])
@@ -101,7 +106,7 @@ class GridEnvironment():
     
     def get_all_states(self):
         """
-        :return: grid = Grid Object, l = list of accessible states
+        :return: l = list of accessible states
         """
         initial_grid = np.zeros(shape=self.shape)
         l = [(i, j) for i, y in enumerate(initial_grid) for j, x in enumerate(y) if (i, j) not in self.walls]
@@ -109,6 +114,10 @@ class GridEnvironment():
         return l
     
     def print_policy(self, p):
+        """
+        Print the policy in grid form
+        1: up, 2: down, 3: left, 4: right
+        """
         for col in range(self.shape[0]):
             for row in range(self.shape[1]):
                 a = p.get((col, row), ' ')
@@ -133,13 +142,13 @@ def policy_iteration():
 
     list_of_states = env.get_all_states()
 
+    # Initialize policy randomly
     policy = {s: random.choice(env.actionsList) for s in list_of_states}
 
     iteration = 0
 
     # State values
     V = {s: 0.0 for s in list_of_states}
-    print(V)
 
     while True:
         iteration += 1
@@ -193,4 +202,5 @@ def exercise_2():
 
 
 if __name__ == "__main__":
+    # test
     policy_iteration()
