@@ -35,9 +35,9 @@ class GridEnvironment():
             reward = 0
         return reward
 
-    def step(self, state, action):
+    def deterministic_step(self, state, action):
         """"
-        Move the agent in the specified direction. If the agent is at a border or 
+        Move the agent in the specified direction. If the agent is at a border or
         hit an obstacle, it stays still at the current state.
         -------------
         0 | 1 | 2| 3|
@@ -47,9 +47,9 @@ class GridEnvironment():
         :param action: int 0, 1, 2, 3
         :return: Tuple of next state and reward
         """
-
         # get the action items (coords) from the action dict
         action = self.actions.get(action)
+
         # move to next state base on action
         next_state = (state[0] + action[0], state[1] + action[1])
 
@@ -63,9 +63,26 @@ class GridEnvironment():
         elif next_state[1] < 0 or next_state[1] >= self.shape[1]:
             next_state = state
 
-        reward = self.get_reward(next_state)
+        reward = self.get_reward(state)
 
         return next_state, reward
+
+    def step(self, state, action):
+        """"
+        Move the agent in the specified direction. If the agent is at a border or 
+        hit an obstacle, it stays still at the current state.
+        -------------
+        0 | 1 | 2| 3|
+        1 |
+        2 |
+        :param state: tuple (i, j)
+        :param action: int 0, 1, 2, 3
+        :return: Tuple of next state and reward
+        """
+        # get the action items (coords) from the action dict
+        probablistic_actions = [action, self.turn_right(action), self.turn_left(action)]
+        action = random.choices(probablistic_actions, weights=[0.8, 0.1, 0.1], k=1)[0]
+        return self.deterministic_step(state, action)
 
     def turn_right(self, action):
         return self.actionsList[(self.actionsList.index(action) + 2) % len(self.actionsList)]
@@ -77,9 +94,9 @@ class GridEnvironment():
         """
         T: [action_prob, (next_state, reward)]
         """
-        t1 = [0.8, self.step(state, action)]
-        t2 = [0.1, self.step(state, self.turn_right(action))]
-        t3 = [0.1, self.step(state, self.turn_left(action))]
+        t1 = [0.8, self.deterministic_step(state, action)]
+        t2 = [0.1, self.deterministic_step(state, self.turn_right(action))]
+        t3 = [0.1, self.deterministic_step(state, self.turn_left(action))]
 
         return [t1, t2, t3]
 
@@ -189,9 +206,81 @@ def policy_iteration():
 
 
 def exercise_1():
-    # TODO For Peter
-    # Implement Q-Learning
-    pass
+    """
+    TODO for Peter
+    Implement the Q-learning algorithm
+    """
+    num_of_iterations = 100000
+    discount = 0.9
+    eps = 0.9
+    a = 0.001
+    b = 2
+    max_num_of_steps = 50
+
+    env = GridEnvironment()
+
+    list_of_states = env.get_all_states()
+    list_of_actions = env.actionsList
+
+    # Initialize Q
+    action_value_map = {s : {a: 0.0 for a in list_of_actions} for s in list_of_states}
+
+    # Initialize current state
+    state = random.choice(list_of_states)
+
+    # Loop
+    for iteration in range(num_of_iterations):
+
+        # Reinitialize current state
+        if iteration % max_num_of_steps == 0:
+            state = random.choice(list_of_states)
+
+        # Select action - eps-greedy strategy
+        action = random.choice(list_of_actions) if random.random() > eps else max(action_value_map[state], key=action_value_map[state].get)
+
+        # Execute the action
+        next_state, reward = env.step(state, action)
+
+        # Estimate Qmax
+        best_next_action = max(action_value_map[next_state], key=action_value_map[next_state].get)
+        q_max = action_value_map[next_state][best_next_action]
+
+        # Generate q
+        q = reward + discount * q_max
+
+        # Update the action-value map
+        eta = 1 / (a * iteration + b)
+        action_value_map[state][action] = action_value_map[state][action] + eta * (q - action_value_map[state][action])
+
+        # Update the state
+        state = next_state
+
+        print(f"\r{iteration}", end="")
+
+    print("\r============= FINAL RESULT ============")
+    print("Q-learning")
+    print("Iterations: " + str(num_of_iterations))
+    print("Maximum Q values:")
+    policy_map = {state: max(action_values, key=action_values.get) for state, action_values in action_value_map.items()}
+    value_map = {state: action_values[policy_map[state]] for state, action_values in action_value_map.items()}
+    for col in range(env.shape[0]):
+        for row in range(env.shape[1]):
+            a = value_map.get((col, row), ' ')
+            if a == ' ':
+                print(" # |", end='')
+            else:
+                print(" {a} |".format(a=a), end='')
+        print("")
+
+    print("Final policy:")
+    for col in range(env.shape[0]):
+        for row in range(env.shape[1]):
+            a = policy_map.get((col, row), ' ')
+            if a == ' ':
+                print(" # |", end='')
+            else:
+                print(" {a} |".format(a=a + 1), end='')
+        print("")
 
 
 def exercise_2(gamma=0.9, a=0.01, b=5):
@@ -257,5 +346,8 @@ def epsilon_greedy(action_values_of_state: np.ndarray, epsilon):
 
 
 if __name__ == "__main__":
+    random.seed(0)
     # test
+    policy_iteration()
+    exercise_1()
     exercise_2()
