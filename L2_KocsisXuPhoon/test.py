@@ -190,8 +190,89 @@ def policy_iteration():
 
 
 def exercise_1():
-    # TODO For Peter
-    # Implement Q-Learning
+    """
+    TODO for Peter
+    Implement the Q-learning algorithm
+    """
+    num_of_iterations = 100000
+    discount = 0.9
+    eps = 0.9
+    a = 0.001
+    b = 2
+    max_num_of_steps = 50
+
+    env = GridEnvironment()
+
+    list_of_states = env.get_all_states()
+    list_of_actions = env.actionsList
+
+    # Initialize Q
+    action_value_map = {s : {a: 0.0 for a in list_of_actions} for s in list_of_states}
+
+    # Initialize current state
+    state = random.choice(list_of_states)
+
+    # Loop
+    for iteration in range(num_of_iterations):
+
+        # Reinitialize current state
+        if iteration % max_num_of_steps == 0:
+            state = random.choice(list_of_states)
+
+        # Select action - eps-greedy strategy
+        action = random.choice(list_of_actions) if random.random() > eps else max(action_value_map[state], key=action_value_map[state].get)
+
+        # Execute the action
+        # next_state, _ = env.step(state, action)
+        # Workaround of the environment
+        transition_matrix = env.transition_matrix(state, action)
+        next_state, _ = random.choices([transition[1] for transition in transition_matrix],
+                                       weights=[transition[0] for transition in transition_matrix], k=1)[0]
+
+        # Workaround of the environment
+        reward = env.get_reward(state)
+
+        # Estimate Qmax
+        best_next_action = max(action_value_map[next_state], key=action_value_map[next_state].get)
+        q_max = action_value_map[next_state][best_next_action]
+
+        # Generate q
+        q = reward + discount * q_max
+
+        # Update the action-value map
+        eta = 1 / (a * iteration + b)
+        action_value_map[state][action] = action_value_map[state][action] + eta * (q - action_value_map[state][action])
+
+        # Update the state
+        state = next_state
+
+        print(f"\r{iteration}", end="")
+
+    print("\r============= FINAL RESULT ============")
+    print("Q-learning")
+    print("Iterations: " + str(num_of_iterations))
+    print("Maximum Q values:")
+    policy_map = {state: max(action_values, key=action_values.get) for state, action_values in action_value_map.items()}
+    value_map = {state: action_values[policy_map[state]] for state, action_values in action_value_map.items()}
+    for col in range(env.shape[0]):
+        for row in range(env.shape[1]):
+            a = value_map.get((col, row), ' ')
+            if a == ' ':
+                print(" # |", end='')
+            else:
+                print(" {a} |".format(a=a), end='')
+        print("")
+
+    print("Final policy:")
+    for col in range(env.shape[0]):
+        for row in range(env.shape[1]):
+            a = policy_map.get((col, row), ' ')
+            if a == ' ':
+                print(" # |", end='')
+            else:
+                print(" {a} |".format(a=a + 1), end='')
+        print("")
+
     pass
 
 
@@ -202,5 +283,7 @@ def exercise_2():
 
 
 if __name__ == "__main__":
+    random.seed(0)
     # test
     policy_iteration()
+    exercise_1()
