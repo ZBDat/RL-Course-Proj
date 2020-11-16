@@ -35,9 +35,9 @@ class GridEnvironment():
             reward = 0
         return reward
 
-    def step(self, state, action):
+    def deterministic_step(self, state, action):
         """"
-        Move the agent in the specified direction. If the agent is at a border or 
+        Move the agent in the specified direction. If the agent is at a border or
         hit an obstacle, it stays still at the current state.
         -------------
         0 | 1 | 2| 3|
@@ -47,9 +47,9 @@ class GridEnvironment():
         :param action: int 0, 1, 2, 3
         :return: Tuple of next state and reward
         """
-
         # get the action items (coords) from the action dict
         action = self.actions.get(action)
+
         # move to next state base on action
         next_state = (state[0] + action[0], state[1] + action[1])
 
@@ -63,9 +63,26 @@ class GridEnvironment():
         elif next_state[1] < 0 or next_state[1] >= self.shape[1]:
             next_state = state
 
-        reward = self.get_reward(next_state)
+        reward = self.get_reward(state)
 
         return next_state, reward
+
+    def step(self, state, action):
+        """"
+        Move the agent in the specified direction. If the agent is at a border or 
+        hit an obstacle, it stays still at the current state.
+        -------------
+        0 | 1 | 2| 3|
+        1 |
+        2 |
+        :param state: tuple (i, j)
+        :param action: int 0, 1, 2, 3
+        :return: Tuple of next state and reward
+        """
+        # get the action items (coords) from the action dict
+        probablistic_actions = [action, self.turn_right(action), self.turn_left(action)]
+        action = random.choices(probablistic_actions, weights=[0.8, 0.1, 0.1], k=1)[0]
+        return self.deterministic_step(state, action)
     
     def turn_right(self, action):
         return self.actionsList[(self.actionsList.index(action) + 2) % len(self.actionsList)]
@@ -77,9 +94,9 @@ class GridEnvironment():
         """
         T: [action_prob, (next_state, reward)]
         """
-        t1 = [0.8, self.step(state, action)]
-        t2 = [0.1, self.step(state, self.turn_right(action))]
-        t3 = [0.1, self.step(state, self.turn_left(action))]
+        t1 = [0.8, self.deterministic_step(state, action)]
+        t2 = [0.1, self.deterministic_step(state, self.turn_right(action))]
+        t3 = [0.1, self.deterministic_step(state, self.turn_left(action))]
 
         return [t1, t2, t3]
     
@@ -223,14 +240,7 @@ def exercise_1():
         action = random.choice(list_of_actions) if random.random() > eps else max(action_value_map[state], key=action_value_map[state].get)
 
         # Execute the action
-        # next_state, _ = env.step(state, action)
-        # Workaround of the environment
-        transition_matrix = env.transition_matrix(state, action)
-        next_state, _ = random.choices([transition[1] for transition in transition_matrix],
-                                       weights=[transition[0] for transition in transition_matrix], k=1)[0]
-
-        # Workaround of the environment
-        reward = env.get_reward(state)
+        next_state, reward = env.step(state, action)
 
         # Estimate Qmax
         best_next_action = max(action_value_map[next_state], key=action_value_map[next_state].get)
@@ -272,8 +282,6 @@ def exercise_1():
             else:
                 print(" {a} |".format(a=a + 1), end='')
         print("")
-
-    pass
 
 
 def exercise_2():
