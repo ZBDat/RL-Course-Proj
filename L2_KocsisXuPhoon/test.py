@@ -197,48 +197,44 @@ def exercise_1():
 def exercise_2(gamma=0.9, a=0.01, b=5):
     # TODO For Zhaobo
     # Implement SARSA
+    print("=========== Result of SARSA ===========")
     env = GridEnvironment()
     state_list = env.get_all_states()
     action_values = np.random.rand(env.nS-1, env.nA)
     action_values_new = np.zeros([env.nS-1, env.nA])
     policy = np.zeros(env.nS-1, dtype=int)
 
-    state = 7
-    action = policy[state]
-    num_iters = 0
-    err = []
-
     while True:
-        eta = 1 / (a * num_iters + b)
-        next_state, reward = env.step(state_list[state], action)
-        next_action = epsilon_greedy(action_values[state_list.index(next_state)], epsilon=0.6)
-        q = reward + gamma * action_values[state_list.index(next_state), next_action]
-        action_values_new[state][action] = action_values[state][action] + eta * (q - action_values[state][action])
+        state = np.random.randint(0, env.nS-1)
+        action = policy[state]
+        num_iters = 0
+        while True:
+            eta = 1 / (a * num_iters + b)  # adaptive learning rate
+            next_state, reward = env.step(state_list[state], action)
+            next_action = epsilon_greedy(action_values[state_list.index(next_state)], epsilon=0.6)
+            q = reward + gamma * action_values[state_list.index(next_state), next_action]
+            action_values_new[state][action] = action_values[state][action] + eta * (q - action_values[state][action])
 
-        err.append(np.sum(np.power(action_values-action_values_new, 2)))
+            if np.allclose(action_values_new, action_values):
+                break
+            else:
+                action_values[state][action] = action_values_new[state][action]
+                state = state_list.index(next_state)
+                policy[state] = next_action
+                action = policy[state]
 
-        if np.allclose(action_values_new, action_values):
+            num_iters += 1
+        optimal_policy = np.argmax(action_values, axis=1)
+
+        if (optimal_policy == policy).all():
             break
         else:
-            action_values[state][action] = action_values_new[state][action]
-            state = state_list.index(next_state)
-            policy[state] = next_action
-            action = policy[state]
+            policy = optimal_policy
 
-        num_iters += 1
-
-    policy = np.argmax(action_values, axis=1)
-
-    error = np.array(err)
-    iters = np.array(range(num_iters+1))
-
-    print(num_iters)
     print(action_values)
-    print(policy)
-    plt.plot(iters, error)
-    plt.show()
+    print(optimal_policy)
 
-    return action_values, policy
+    return action_values, optimal_policy
 
 
 def epsilon_greedy(action_values_of_state: np.ndarray, epsilon):
