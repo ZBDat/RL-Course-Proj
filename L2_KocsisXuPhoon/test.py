@@ -2,8 +2,6 @@ from typing import Tuple
 
 import numpy as np
 import random
-import matplotlib.pyplot as plt
-
 
 class GridEnvironment():
     # TODO For Mun Seng
@@ -257,8 +255,6 @@ def exercise_1():
         # Update the state
         state = next_state
 
-        print(f"\r{iteration}", end="")
-
     print("\nIterations: " + str(num_of_iterations))
     print("Maximum Q values:")
     policy_map = {state: max(action_values, key=action_values.get) for state, action_values in action_value_map.items()}
@@ -323,8 +319,6 @@ def exercise_2(gamma=0.9, a=0.0005, b=5):
         state = state_list.index(next_state)
         action = random.choice(env.actionsList) if random.random() > 0.85 else next_action
 
-        print(f"\r{num_iters}", end="")
-
     Q_max = np.max(action_values, axis=1).reshape([3, 4])
     Q_UP = action_values[:, 0].reshape([3, 4])
     Q_DOWN = action_values[:, 1].reshape([3, 4])
@@ -332,7 +326,8 @@ def exercise_2(gamma=0.9, a=0.0005, b=5):
     Q_RIGHT = action_values[:, 3].reshape([3, 4])
     optimal_policy = np.argmax(action_values, axis=1).reshape([3, 4])
 
-    print("\nMaximum of action values")
+    print("\nIterations: " + str(max_iters))
+    print("Maximum of action values")
     report(Q_max, env)
     print("Values for action 'UP'")
     report(Q_UP, env)
