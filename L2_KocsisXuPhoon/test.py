@@ -4,6 +4,7 @@ import numpy as np
 import random
 import matplotlib.pyplot as plt
 
+
 class GridEnvironment():
     # TODO For Mun Seng
     # Implement Env
@@ -223,7 +224,7 @@ def exercise_1():
     list_of_actions = env.actionsList
 
     # Initialize Q
-    action_value_map = {s : {a: 0.0 for a in list_of_actions} for s in list_of_states}
+    action_value_map = {s: {a: 0.0 for a in list_of_actions} for s in list_of_states}
 
     # Initialize current state
     state = random.choice(list_of_states)
@@ -236,7 +237,8 @@ def exercise_1():
             state = random.choice(list_of_states)
 
         # Select action - eps-greedy strategy
-        action = random.choice(list_of_actions) if random.random() > eps else max(action_value_map[state], key=action_value_map[state].get)
+        action = random.choice(list_of_actions) if random.random() > eps else max(action_value_map[state],
+                                                                                  key=action_value_map[state].get)
 
         # Execute the action
         next_state, reward = env.step(state, action)
@@ -257,9 +259,7 @@ def exercise_1():
 
         print(f"\r{iteration}", end="")
 
-    print("\r============= FINAL RESULT ============")
-    print("Q-learning")
-    print("Iterations: " + str(num_of_iterations))
+    print("\nIterations: " + str(num_of_iterations))
     print("Maximum Q values:")
     policy_map = {state: max(action_values, key=action_values.get) for state, action_values in action_value_map.items()}
     value_map = {state: action_values[policy_map[state]] for state, action_values in action_value_map.items()}
@@ -267,9 +267,9 @@ def exercise_1():
         for row in range(env.shape[1]):
             a = value_map.get((col, row), ' ')
             if a == ' ':
-                print(" # |", end='')
+                print("   #    |", end='')
             else:
-                print(" {a} |".format(a=a), end='')
+                print(" {a} |".format(a=round(a, 4)), end='')
         print("")
 
     print("Final policy:")
@@ -283,45 +283,74 @@ def exercise_1():
         print("")
 
 
-def exercise_2(gamma=0.9, a=0.01, b=5):
+def exercise_2(gamma=0.9, a=0.0005, b=5):
     # TODO For Zhaobo
     # Implement SARSA
-    print("=========== Result of SARSA ===========")
+
     env = GridEnvironment()
-    state_list = env.get_all_states()
-    action_values = np.random.rand(env.nS-1, env.nA)
-    action_values_new = np.zeros([env.nS-1, env.nA])
-    policy = np.zeros(env.nS-1, dtype=int)
 
-    while True:
-        state = np.random.randint(0, env.nS-1)
-        action = policy[state]
-        num_iters = 0
-        while True:
-            eta = 1 / (a * num_iters + b)  # adaptive learning rate
-            next_state, reward = env.step(state_list[state], action)
-            next_action = epsilon_greedy(action_values[state_list.index(next_state)], epsilon=0.6)
-            q = reward + gamma * action_values[state_list.index(next_state), next_action]
-            action_values_new[state][action] = action_values[state][action] + eta * (q - action_values[state][action])
+    # initialization
+    state_list = [(i, j) for i, y in enumerate(np.zeros(shape=env.shape)) for j, x in enumerate(y)]
+    action_values = np.zeros([env.nS, env.nA])
 
-            if np.allclose(action_values_new, action_values):
-                break
+    # set limit of iterations
+    max_iters = 1000000
+    max_step = 50
+
+    # set initial state and action
+    state = random.randint(0, env.nS - 1)
+    action = random.randint(0, env.nA - 1)
+
+    for num_iters in range(max_iters):
+
+        # Reinitialize current state if reach the goal
+        if state == state_list.index((0, 3)):
+            state = random.randint(0, env.nS - 1)
+
+        eta = 1 / (a * num_iters + b)  # adaptive learning rate
+
+        # execute the action
+        next_state, reward = env.step(state_list[state], action)
+
+        # select a' according to epsilon-greedy policy
+        next_action = epsilon_greedy(action_values[state_list.index(next_state)], epsilon=0.97)
+        q = reward + gamma * action_values[state_list.index(next_state), next_action]
+
+        # update the action values
+        action_values[state][action] = action_values[state][action] + eta * (q - action_values[state][action])
+
+        # update the state and the action (action has a little chance to be random, for convergence)
+        state = state_list.index(next_state)
+        action = random.choice(env.actionsList) if random.random() > 0.85 else next_action
+
+        print(f"\r{num_iters}", end="")
+
+    Q_max = np.max(action_values, axis=1).reshape([3, 4])
+    Q_UP = action_values[:, 0].reshape([3, 4])
+    Q_DOWN = action_values[:, 1].reshape([3, 4])
+    Q_LEFT = action_values[:, 2].reshape([3, 4])
+    Q_RIGHT = action_values[:, 3].reshape([3, 4])
+    optimal_policy = np.argmax(action_values, axis=1).reshape([3, 4])
+
+    print("\nMaximum of action values")
+    report(Q_max, env)
+    print("Values for action 'UP'")
+    report(Q_UP, env)
+    print("Values for action 'DOWN'")
+    report(Q_DOWN, env)
+    print("Values for action 'LEFT'")
+    report(Q_LEFT, env)
+    print("Values for action 'RIGHT'")
+    report(Q_RIGHT, env)
+    print("Final policy:")
+    for col in range(env.shape[0]):
+        for row in range(env.shape[1]):
+            a = optimal_policy[col, row]
+            if col == 1 and row == 1:
+                print(" # |", end='')
             else:
-                action_values[state][action] = action_values_new[state][action]
-                state = state_list.index(next_state)
-                policy[state] = next_action
-                action = policy[state]
-
-            num_iters += 1
-        optimal_policy = np.argmax(action_values, axis=1)
-
-        if (optimal_policy == policy).all():
-            break
-        else:
-            policy = optimal_policy
-
-    print(action_values)
-    print(optimal_policy)
+                print(" {a} |".format(a=a+1), end='')
+        print("")
 
     return action_values, optimal_policy
 
@@ -333,11 +362,11 @@ def epsilon_greedy(action_values_of_state: np.ndarray, epsilon):
     :return: the action selected
     """
     if (epsilon < 1) and (epsilon > 0):
-        p = np.random.rand()
+        p = random.random()
         if p <= epsilon:
             action = np.argmax(action_values_of_state)
         else:
-            action = np.random.randint(low=0, high=4)
+            action = random.randint(0, 3)
         return action
 
     else:
@@ -345,9 +374,24 @@ def epsilon_greedy(action_values_of_state: np.ndarray, epsilon):
         return None
 
 
+def report(table: np.ndarray, env: GridEnvironment):
+    np.set_printoptions(precision=4)
+    for col in range(env.shape[0]):
+        for row in range(env.shape[1]):
+            a = table[col, row]
+            if col == 1 and row == 1:
+                print("   #  |", end='')
+            else:
+                print(" {a} |".format(a=round(a, 4)), end='')
+        print("")
+
+
 if __name__ == "__main__":
     random.seed(0)
     # test
-    policy_iteration()
+    print("\r============= FINAL RESULT ============")
+    print("Q-learning")
     exercise_1()
+    print("\n")
+    print("SARSA")
     exercise_2()
