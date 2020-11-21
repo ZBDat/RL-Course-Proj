@@ -163,6 +163,9 @@ class InvertedPendulumRenderer:
         Plots the state of the simulation
         :param rewards: The list of rewards to plot
         """
+        if len(rewards) == 0:
+            return
+        
         if not self._reward_plot_ready:
             self._initialize_reward_plot()
 
