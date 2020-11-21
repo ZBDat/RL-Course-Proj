@@ -165,7 +165,7 @@ class InvertedPendulumRenderer:
         """
         if len(rewards) == 0:
             return
-        
+
         if not self._reward_plot_ready:
             self._initialize_reward_plot()
 
@@ -296,7 +296,7 @@ class InvertedPendulumEnvironment:
         current_position, current_velocity = self.state
 
         remaining_time = self._action_interval
-        dt = self._action_interval
+        dt = self._update_interval
 
         next_position, next_velocity = current_position, current_velocity
 
