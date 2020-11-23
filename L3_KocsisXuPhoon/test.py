@@ -379,7 +379,10 @@ def environment_simulation():
     environment.plot_reward()
 
     # Define some actions
-    action_list = np.concatenate((np.repeat(0, 200), np.repeat(5, 100), np.repeat(0, 200)))
+    action = []
+    for i in range(500):
+        action.append(random.uniform(-5, 5))
+    action_list = np.array(action)
     for action in action_list:
         # Apply the action
         state, reward = environment.step(action)
@@ -413,6 +416,6 @@ def set_seed(seed):
 
 if __name__ == "__main__":
     set_seed(0)
-    init_logger()
+    # init_logger()
     # test
     environment_simulation()
