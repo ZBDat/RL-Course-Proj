@@ -455,3 +455,56 @@ if __name__ == "__main__":
     # init_logger()
     # test
     environment_simulation()
+
+
+
+class VariableResolutionPartition:
+    def __init__(self, decision_boundary):
+        self.child_1: VariableResolutionPartition = None
+        self.child_2: VariableResolutionPartition = None
+        self.decision_boundary = decision_boundary
+        self.sample_number = 0
+        self.q_mean =
+        self.q_variance
+       ...
+
+    def get_value(self, state, action):
+        if self.child_1 is None and self.child_2 is None:
+            return (self.sample_number, self.q_mean, self.q_variance)
+
+        if (state, action) < self.decision_boundary:
+            self.child_1.get_value(state, action)
+        else:
+            self.child_2.get_value(state, action)
+
+    def update_value(self, new_sample_state, new_sample_action, new_sample_Q):
+        if self.child_1 is None and self.child_2 is None:
+            self.sample_number += 1
+            self.q_mean = ...
+            self.q_variance ...
+
+            if self.q_variance > threshold or self.sample_number > other_threshold:
+                self.split()
+
+        if (new_sample_state, new_sample_action) < self.decision_boundary:
+            self.child_1.update_value(new_sample_state, new_sample_action, new_sample_Q)
+        else:
+            self.child_2.update_value(new_sample_state, new_sample_action, new_sample_Q)
+
+    def split(self):
+        self.child_1: VariableResolutionPartition = VariableResolutionPartition(...)
+        self.child_2: VariableResolutionPartition = VariableResolutionPartition(...)
+
+
+class Q_value:
+    def __init__(self):
+        data = VariableResolutionPartition()
+
+
+    def query(self, state, action):
+        # Find the specific partition
+        return mean, variance
+
+    def update(self, new_sample_state, new_sample_action, new_sample_Q):
+        # Update the binary tree
+        ...
