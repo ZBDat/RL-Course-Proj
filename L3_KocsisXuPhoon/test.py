@@ -6,6 +6,7 @@ from typing import Tuple, List
 import matplotlib
 import matplotlib.pyplot as plt
 import numpy as np
+from numpy import pi
 
 matplotlib.use('TkAgg')
 
@@ -361,6 +362,10 @@ class InvertedPendulumEnvironment:
         """Waits until the simulation step ends"""
         self._renderer.pause_until_simulation_end()
 
+    @property
+    def action_range(self):
+        return self._action_range
+
 
 def environment_simulation():
     """
@@ -399,15 +404,46 @@ def environment_simulation():
     print("Done")
 
 
-def variable_resolution_q_learning():
+def q_learning():
     """
     TODO for TBD - 2st week
     Implement the variable resolution Q-learning algorithm
     """
-    # TODO: Training
-    # TODO: Inference
-    pass
+    env = InvertedPendulumEnvironment()
 
+    # require rendering
+    env.render()
+    env.plot_reward()
+
+    env.state = (pi, 0)
+
+    num_episodes = 100
+    num_iters = 500
+    gamma = 0.9
+
+    action_value_estimation = 0
+
+    for e in range(num_episodes):
+
+        for i in range(num_iters):
+
+            """estimation of action value"""
+            # select action based on stat method
+            a = np.argmax(q_rand)
+            next_state, reward = env.step(a)
+
+            # estimate the action value
+            Q_max = ...
+            q = reward + gamma * Q_max
+
+            # update
+            action_value_extimation = ...
+            q_rand = ...
+            env.state = next_state
+
+def variable_resolution(state, action, q, ):
+
+    return action_value_extimation
 
 def set_seed(seed):
     random.seed(seed)
