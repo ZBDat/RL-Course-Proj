@@ -405,45 +405,42 @@ def environment_simulation():
 
 
 def q_learning():
-    """
-    TODO for TBD - 2st week
-    Implement the variable resolution Q-learning algorithm
-    """
+
+    gamma = 0.9
+    a = 0.001
+    b = 2
+    epsilon = 0.5
+
     env = InvertedPendulumEnvironment()
 
-    # require rendering
-    env.render()
-    env.plot_reward()
+    # Training
+    # initialize the Q function expression
+    action_value_estimate = Q_value()
 
+    # observe current state s
     env.state = (pi, 0)
+    action = random.uniform(-5, 5)
 
+    # loop
     num_episodes = 100
-    num_iters = 500
-    gamma = 0.9
-
-    action_value_estimation = 0
-
+    num_iterations = 500
     for e in range(num_episodes):
+        for i in range(num_iterations):
 
-        for i in range(num_iters):
+            # select action a according to the exploration-exploitation strategy
+            mean, variance = action_value_estimate.query(env.state, action)
+            q_rand = np.random.normal(mean, variance)
+            action =
 
-            """estimation of action value"""
-            # select action based on stat method
-            a = np.argmax(q_rand)
-            next_state, reward = env.step(a)
+            # execute a and get reward, observe new state s'
+            next_state, reward = env.step(action)
 
-            # estimate the action value
-            Q_max = ...
-            q = reward + gamma * Q_max
+            # estimate Q_max
+            Q_max =
+            q = r + gamma * Q_max
 
-            # update
-            action_value_extimation = ...
-            q_rand = ...
-            env.state = next_state
-
-def variable_resolution(state, action, q, ):
-
-    return action_value_extimation
+            # update the Q using sample s, a, q
+            action_value_estimate.update(env.state, action, q)
 
 def set_seed(seed):
     random.seed(seed)
@@ -459,14 +456,13 @@ if __name__ == "__main__":
 
 
 class VariableResolutionPartition:
-    def __init__(self, decision_boundary):
+    def __init__(self, q_mean, q_variance, decision_boundary):
         self.child_1: VariableResolutionPartition = None
         self.child_2: VariableResolutionPartition = None
         self.decision_boundary = decision_boundary
         self.sample_number = 0
-        self.q_mean =
-        self.q_variance
-       ...
+        self.q_mean = 0
+        self.q_variance = 1
 
     def get_value(self, state, action):
         if self.child_1 is None and self.child_2 is None:
@@ -498,11 +494,13 @@ class VariableResolutionPartition:
 
 class Q_value:
     def __init__(self):
-        data = VariableResolutionPartition()
+        self.data = VariableResolutionPartition(q_mean = 0, q_variance=1)
 
 
     def query(self, state, action):
         # Find the specific partition
+        mean = self.data.q_mean
+        variance = self.data.q_variance
         return mean, variance
 
     def update(self, new_sample_state, new_sample_action, new_sample_Q):
