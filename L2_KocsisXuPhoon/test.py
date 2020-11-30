@@ -203,6 +203,7 @@ def policy_iteration():
     print("Optimal Policy:")
     env.print_policy(policy)
 
+q_list = []
 
 def exercise_1():
     """
@@ -244,13 +245,13 @@ def exercise_1():
         # Estimate Qmax
         best_next_action = max(action_value_map[next_state], key=action_value_map[next_state].get)
         q_max = action_value_map[next_state][best_next_action]
-
         # Generate q
         q = reward + discount * q_max
 
         # Update the action-value map
         eta = 1 / (a * iteration + b)
         action_value_map[state][action] = action_value_map[state][action] + eta * (q - action_value_map[state][action])
+        # print(iteration, state, action, action_value_map[state][action])
 
         # Update the state
         state = next_state
