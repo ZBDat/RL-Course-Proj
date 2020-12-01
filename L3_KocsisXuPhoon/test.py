@@ -422,7 +422,7 @@ class VariableResolution:
         self.decision_boundary = decision_boundary # (s,a)
         self.sample_number = 0
         self.q_mean = 0
-        self.q_variance = 0
+        self.q_variance = 1
         self.state_action_dict = dict()
         # thresholds
         self.thr_n = thr_n
@@ -430,7 +430,7 @@ class VariableResolution:
 
     def get_value(self, state, action):
         if self.child_1 is None and self.child_2 is None:
-            return (self.sample_number, self.q_mean, self.q_variance)
+            return self.sample_number, self.q_mean, self.q_variance
 
         if (state, action) < self.decision_boundary:
             self.child_1.get_value(state, action)
@@ -467,7 +467,7 @@ class VariableResolution:
         
         state_list = self.state_action_dict.keys()
         # size of the state dimension in Q table
-        size_state = max(tuple(x-y for x,y in zip(max(state_list), min(state_list))))
+        size_state = max(tuple(x-y for x, y in zip(max(state_list), min(state_list))))
 
         if size_action > size_state:
             action = statistics.median(action_list)
@@ -484,9 +484,10 @@ class VariableResolution:
         self.child_2: VariableResolution = VariableResolution((state, action))
 
 
-class Q_value:
+class QValue:
     def __init__(self):
-        data = VariableResolution()
+        self.data = VariableResolution()
+        self.data.state_action_dict[(pi, 0)] = 0
 
     def query(self, state, action):
         # Find the specific partition
@@ -878,20 +879,15 @@ def environment_simulation():
 
 def variable_resolution_q_learning():
 
-    gamma = 0.9
-    a = 0.001
-    b = 2
-    epsilon = 0.5
-
     env = InvertedPendulumEnvironment()
 
     # Training
     # initialize the Q function expression
-    action_value_estimate = Q_value()
+    Q_value_estimate = QValue()
 
     # observe current state s
     env.state = (pi, 0)
-    action = random.uniform(-5, 5)
+    Q_value_estimate.data.state_action_dict[env.state] = random.uniform(-5, 5)
 
     # loop
     num_episodes = 100
@@ -899,20 +895,19 @@ def variable_resolution_q_learning():
     for e in range(num_episodes):
         for i in range(num_iterations):
 
-            # select action a according to the exploration-exploitation strategy
-            mean, variance = action_value_estimate.query(env.state, action)
-            q_rand = np.random.normal(mean, variance)
-            action =
+            # select an action according to the exploration-exploitation strategy
+            action = Q_value_estimate.data.state_action_dict[env.state]
 
             # execute a and get reward, observe new state s'
             next_state, reward = env.step(action)
 
             # estimate Q_max
-            Q_max =
-            q = r + gamma * Q_max
+            next_action = Q_value_estimate.data.state_action_dict[next_state]
+            mean, variance = Q_value_estimate.query(next_state, next_action)
+            Q_max = ...
 
             # update the Q using sample s, a, q
-            action_value_estimate.update(env.state, action, q)
+            Q_value_estimate.update(env.state, action, q)
 
 def set_seed(seed):
     random.seed(seed)
