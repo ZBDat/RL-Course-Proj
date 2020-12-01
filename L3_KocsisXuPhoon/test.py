@@ -448,7 +448,9 @@ class VariableResolution:
             self.q_mean = self.q_mean + alpha * delta
             self.q_variance = self.q_variance + alpha * ((delta * delta) - self.q_variance)
 
-            self.state_action_dict[new_sample_state] = new_sample_action
+            if new_sample_state not in self.state_action_dict:
+                self.state_action_dict[new_sample_state] = []
+            self.state_action_dict[new_sample_state].append(new_sample_action)
 
             # Splitting criterion
             if self.q_variance > self.thr_var and self.sample_number > self.thr_n:
@@ -461,17 +463,20 @@ class VariableResolution:
 
     def split(self, offset=0):
         # split state-action space in 2 halves along the dimension with the largest size
-        action_list = self.state_action_dict.values()
+        action_list = list(self.state_action_dict.values())
+        action_list_flatten = [item for sublist in action_list for item in sublist]
         # size of the action dimension in Q table
-        size_action = max(action_list) - min(action_list)
+        size_action = max(action_list_flatten) - min(action_list_flatten)
         
         state_list = self.state_action_dict.keys()
         # size of the state dimension in Q table
         size_state = max(tuple(x-y for x, y in zip(max(state_list), min(state_list))))
 
         if size_action > size_state:
-            action = statistics.median(action_list)
-            state = (list(self.state_action_dict.keys())[list(self.state_action_dict.values()).index(action)])
+            action = statistics.median(action_list_flatten)
+            ar = np.array(action_list)
+            idx, idy = np.where(ar==action)
+            state = (list(self.state_action_dict.keys())[list(self.state_action_dict.values()).index(action_list[int(idx)])])
         else:
             state = statistics.median(state_list)
             action = self.state_action_dict.get(state)
