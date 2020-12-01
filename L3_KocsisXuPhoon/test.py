@@ -1,7 +1,7 @@
 import logging
 import random
 import time
-from typing import Tuple, List
+from typing import Tuple, List, Dict, Any
 
 import matplotlib
 import matplotlib.pyplot as plt
@@ -416,7 +416,7 @@ def environment_simulation():
        
 
 class VariableResolution:
-    def __init__(self, decision_boundary = None, thr_n = 20, thr_var = 1):
+    def __init__(self, decision_boundary=None, thr_n=20, thr_var=1):
         self.child_1: VariableResolution = None
         self.child_2: VariableResolution = None
         self.decision_boundary = decision_boundary # (s,a)
@@ -494,7 +494,7 @@ class QValue:
         self.data = VariableResolution()
         self.data.state_action_dict[(pi, 0)] = 0
 
-    def query(self, state, action):
+    def query(self, state: Tuple[float, float], action: float) -> Tuple[float, float]:
         # Find the specific partition
         _, mean, variance = self.data.get_value(state, action)
         return mean, variance
@@ -886,33 +886,82 @@ def variable_resolution_q_learning():
 
     env = InvertedPendulumEnvironment()
 
-    # Training
-    # initialize the Q function expression
+    # initialize
     Q_value_estimate = QValue()
 
-    # observe current state s
-    env.state = (pi, 0)
-    Q_value_estimate.data.state_action_dict[env.state] = random.uniform(-5, 5)
+    state = (pi, 0)
+    action = random.uniform(-5, 5)
+    Q_value_estimate.data.state_action_dict[state] = list([action])
 
     # loop
     num_episodes = 100
     num_iterations = 500
+
+    eps = 0.8
+    gamma = 0.9
+
     for e in range(num_episodes):
+
+        # Training phase
+        # observe current state s
+        state = (pi, 0)
+        action = random.uniform(-5, 5)
+
         for i in range(num_iterations):
 
-            # select an action according to the exploration-exploitation strategy
-            action = Q_value_estimate.data.state_action_dict[env.state]
-
             # execute a and get reward, observe new state s'
+            env.state = state
             next_state, reward = env.step(action)
 
             # estimate Q_max
-            next_action = Q_value_estimate.data.state_action_dict[next_state]
-            mean, variance = Q_value_estimate.query(next_state, next_action)
-            Q_max = ...
+            q_rand: Dict[float, float] = dict()
 
-            # update the Q using sample s, a, q
-            Q_value_estimate.update(env.state, action, q)
+            for next_action in Q_value_estimate.data.state_action_dict[env.state]:
+
+                mean, variance = Q_value_estimate.query(env.state, next_action)
+                q_rand[next_action] = np.random.normal(mean, variance)
+
+            best_action = list(q_rand.keys())[list(q_rand.values()).index(max(q_rand.values()))]
+
+            Q_max, Var = QValue.query(next_state, best_action)
+            q = reward + gamma * Q_max
+
+            # update
+            Q_value_estimate.update(state, action, q)
+            state = next_state
+
+            # select an action according to the exploration-exploitation strategy
+            action = random.uniform(-5, 5) if random.random() > eps else \
+                action = list(q_rand.keys())[list(q_rand.values()).index(max(q_rand.values()))]
+
+        # Testing phase
+        test_state = (pi, 0)
+        test_action = random.uniform(-5, 5)
+
+        accumulated_reward = 0
+
+        for i in range(num_iterations):
+
+            # execute the action
+            env.state = test_state
+            test_next_state, test_reward = env.step(test_action)
+
+            accumulated_reward += test_reward
+
+            max_mean = 0
+
+            # select the best action based on the learned results
+            best_test_next_action = random.choice(Q_value_estimate.data.state_action_dict.values())
+            for test_next_action in Q_value_estimate.data.state_action_dict.values():
+                mean, _ = Q_value_estimate.query(test_next_state, test_next_action)
+
+                if mean >= max_mean:
+                    best_test_next_action = test_next_action
+                else:
+                    pass
+
+            test_state = test_next_state
+            test_action = best_test_next_action
 
 def set_seed(seed):
     random.seed(seed)
@@ -928,4 +977,5 @@ if __name__ == "__main__":
     set_seed(0)
     # init_logger()
     # test
-    environment_simulation()
+    # environment_simulation()
+    variable_resolution_q_learning()
