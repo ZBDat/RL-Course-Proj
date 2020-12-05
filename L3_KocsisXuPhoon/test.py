@@ -24,6 +24,7 @@ def init_logger():
 
     logger.addHandler(ch)
 
+
 import statistics
 
 matplotlib.use('TkAgg')
@@ -270,8 +271,7 @@ class InvertedPendulumEnvironment:
         Resets the environment
         :return: The initial state
         """
-        self.state = (np.random.uniform(low=-np.pi, high=np.pi),
-                      np.random.uniform(low=-2 * np.pi, high=2 * np.pi))
+        self.state = (pi, 0)
         self.time = 0
         self.rewards = []
 
@@ -413,13 +413,13 @@ def environment_simulation():
         environment.wait_for_simulation()
 
     print("Done")
-       
+
 
 class VariableResolution:
     def __init__(self, decision_boundary=None, thr_n=20, thr_var=1):
         self.child_1: VariableResolution = None
         self.child_2: VariableResolution = None
-        self.decision_boundary = decision_boundary # (s,a)
+        self.decision_boundary = decision_boundary  # (s,a)
         self.sample_number = 0
         self.q_mean = 0
         self.q_variance = 1
@@ -467,22 +467,23 @@ class VariableResolution:
         action_list_flatten = [item for sublist in action_list for item in sublist]
         # size of the action dimension in Q table
         size_action = max(action_list_flatten) - min(action_list_flatten)
-        
+
         state_list = self.state_action_dict.keys()
         # size of the state dimension in Q table
-        size_state = max(tuple(x-y for x, y in zip(max(state_list), min(state_list))))
+        size_state = max(tuple(x - y for x, y in zip(max(state_list), min(state_list))))
 
         if size_action > size_state:
             action = statistics.median(action_list_flatten)
             ar = np.array(action_list)
-            idx, idy = np.where(ar==action)
-            state = (list(self.state_action_dict.keys())[list(self.state_action_dict.values()).index(action_list[int(idx)])])
+            idx, idy = np.where(ar == action)
+            state = (
+                list(self.state_action_dict.keys())[list(self.state_action_dict.values()).index(action_list[int(idx)])])
         else:
             state = statistics.median(state_list)
             action = self.state_action_dict.get(state)
-        
+
         # offset
-        state = tuple([x+offset for x in state])
+        state = tuple([x + offset for x in state])
         action += offset
 
         self.child_1: VariableResolution = VariableResolution((state, action))
@@ -502,6 +503,13 @@ class QValue:
     def update(self, new_sample_state, new_sample_action, new_sample_Q):
         # Update the binary tree
         self.data.update_value(new_sample_state, new_sample_action, new_sample_Q)
+
+    def estimate_max(self, state:Tuple[float, float]):
+        # get the maximum value and the corresponding action
+
+        best_action = ...
+        return best_action
+
 
 class InvertedPendulumRenderer:
     """
@@ -883,7 +891,6 @@ def environment_simulation():
 
 
 def variable_resolution_q_learning():
-
     env = InvertedPendulumEnvironment()
 
     # initialize
@@ -904,8 +911,7 @@ def variable_resolution_q_learning():
 
         # Training phase
         # observe current state s
-        state = (pi, 0)
-        action = random.uniform(-5, 5)
+        env.reset()
 
         for i in range(num_iterations):
 
@@ -916,10 +922,9 @@ def variable_resolution_q_learning():
             # estimate Q_max
             q_rand: Dict[float, float] = dict()
 
-            for next_action in Q_value_estimate.data.state_action_dict[env.state]:
-
-                mean, variance = Q_value_estimate.query(env.state, next_action)
-                q_rand[next_action] = np.random.normal(mean, variance)
+            """for next_action in Q_value_estimate.data.state_action_dict[next_state]:
+                mean, variance = Q_value_estimate.query(next_state, next_action)
+                q_rand[next_action] = np.random.normal(mean, variance)"""
 
             best_action = list(q_rand.keys())[list(q_rand.values()).index(max(q_rand.values()))]
 
@@ -931,7 +936,9 @@ def variable_resolution_q_learning():
             state = next_state
 
             # select an action according to the exploration-exploitation strategy
-            action = random.uniform(-5, 5) if random.random() > eps else \
+            if random.random() > eps:
+                action = random.uniform(-5, 5)
+            else:
                 action = list(q_rand.keys())[list(q_rand.values()).index(max(q_rand.values()))]
 
         # Testing phase
@@ -962,6 +969,7 @@ def variable_resolution_q_learning():
 
             test_state = test_next_state
             test_action = best_test_next_action
+
 
 def set_seed(seed):
     random.seed(seed)
