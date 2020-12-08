@@ -942,7 +942,7 @@ def variable_resolution_q_learning():
 
             else:
                 best_action = random.uniform(-5, 5)
-                Q_max = Q_value_estimate.query(next_state, best_action)
+                Q_max, _ = Q_value_estimate.query(next_state, best_action)
 
             q = reward + gamma * Q_max
 
@@ -980,11 +980,6 @@ def variable_resolution_q_learning():
                     pass
 
             test_action = best_test_next_action
-
-
-def set_seed(seed):
-    random.seed(seed)
-    np.random.seed(seed)
 
 
 def set_seed(seed):
