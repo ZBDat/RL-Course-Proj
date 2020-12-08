@@ -504,11 +504,26 @@ class QValue:
         # Update the binary tree
         self.data.update_value(new_sample_state, new_sample_action, new_sample_Q)
 
-    def estimate_max(self, state:Tuple[float, float]):
+    def estimate_max(self, state: Tuple[float, float]):
         # get the maximum value and the corresponding action
+        action_list = self.data.state_action_dict[state]
 
-        best_action = ...
-        return best_action
+        if action_list:
+            mean_list = []
+            max_mean = 0
+
+            for action in action_list:
+                mean, _ = self.query(state, action)
+                mean_list.append(mean)
+                max_mean = mean if mean > max_mean else max_mean
+
+            best_action = action_list[mean_list.index(max_mean)]
+
+        else:
+            best_action = random.uniform(-5, 5)
+            max_mean, _ = self.query(state, best_action)
+
+        return best_action, max_mean
 
 
 class InvertedPendulumRenderer:
@@ -907,6 +922,8 @@ def variable_resolution_q_learning():
     eps = 0.8
     gamma = 0.9
 
+    accumulated_reward = 0
+
     for e in range(num_episodes):
 
         # Training phase
@@ -920,15 +937,13 @@ def variable_resolution_q_learning():
             next_state, reward = env.step(action)
 
             # estimate Q_max
-            q_rand: Dict[float, float] = dict()
+            if next_state in Q_value_estimate.data.state_action_dict.keys():
+                best_action, Q_max = Q_value_estimate.estimate_max(state)
 
-            """for next_action in Q_value_estimate.data.state_action_dict[next_state]:
-                mean, variance = Q_value_estimate.query(next_state, next_action)
-                q_rand[next_action] = np.random.normal(mean, variance)"""
+            else:
+                best_action = random.uniform(-5, 5)
+                Q_max = Q_value_estimate.query(next_state, best_action)
 
-            best_action = list(q_rand.keys())[list(q_rand.values()).index(max(q_rand.values()))]
-
-            Q_max, Var = QValue.query(next_state, best_action)
             q = reward + gamma * Q_max
 
             # update
@@ -939,18 +954,15 @@ def variable_resolution_q_learning():
             if random.random() > eps:
                 action = random.uniform(-5, 5)
             else:
-                action = list(q_rand.keys())[list(q_rand.values()).index(max(q_rand.values()))]
+                action = best_action
 
         # Testing phase
-        test_state = (pi, 0)
+        env.reset()
         test_action = random.uniform(-5, 5)
-
-        accumulated_reward = 0
 
         for i in range(num_iterations):
 
             # execute the action
-            env.state = test_state
             test_next_state, test_reward = env.step(test_action)
 
             accumulated_reward += test_reward
@@ -967,7 +979,6 @@ def variable_resolution_q_learning():
                 else:
                     pass
 
-            test_state = test_next_state
             test_action = best_test_next_action
 
 
