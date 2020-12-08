@@ -429,10 +429,11 @@ class VariableResolution:
         self.thr_var = thr_var
 
     def get_value(self, state, action):
+        theta, theta_dot = state
         if self.child_1 is None and self.child_2 is None:
             return self.sample_number, self.q_mean, self.q_variance
 
-        if (state, action) < self.decision_boundary:
+        if all(np.array([theta, theta_dot, action]) < self.decision_boundary):
             self.child_1.get_value(state, action)
         else:
             self.child_2.get_value(state, action)
