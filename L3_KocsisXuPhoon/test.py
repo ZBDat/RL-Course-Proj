@@ -411,15 +411,18 @@ class VariableResolution:
         self.thr_var = thr_var
 
     def get_value(self, state, action):
+        theta, theta_dot = state
         if self.child_1 is None and self.child_2 is None:
             return (self.sample_number, self.q_mean, self.q_variance)
 
-        if (state, action) < self.decision_boundary:
+        if all(np.array([theta, theta_dot, action]) < self.decision_boundary):
             self.child_1.get_value(state, action)
         else:
             self.child_2.get_value(state, action)
 
     def update_value(self, new_sample_state, new_sample_action, new_sample_Q):
+        new_theta, new_theta_dot = new_sample_state
+        # No children, just take the value and update the statistics
         if self.child_1 is None and self.child_2 is None:
             self.sample_number += 1
             a = 0.001
@@ -438,7 +441,8 @@ class VariableResolution:
             if self.q_variance > self.thr_var and self.sample_number > self.thr_n:
                 self.split()
 
-        if (new_sample_state, new_sample_action) < self.decision_boundary:
+        # Has children, check the decision boundary and ask the children to proceed
+        if all(np.array([new_theta, new_theta_dot, new_sample_action]) < self.decision_boundary):
             self.child_1.update_value(new_sample_state, new_sample_action, new_sample_Q)
         else:
             self.child_2.update_value(new_sample_state, new_sample_action, new_sample_Q)
@@ -451,24 +455,36 @@ class VariableResolution:
         size_action = max(action_list_flatten) - min(action_list_flatten)
         
         state_list = self.state_action_dict.keys()
+        theta_list_flatten = [state[0] for state in state_list]
+        theta_dot_list_flatten = [state[1] for state in state_list]
         # size of the state dimension in Q table
-        size_state = max(tuple(x-y for x,y in zip(max(state_list), min(state_list))))
+        size_theta = max(theta_list_flatten) - min(theta_list_flatten)
+        size_theta_dot = max(theta_dot_list_flatten) - min(theta_dot_list_flatten)
 
-        if size_action > size_state:
-            action = statistics.median(action_list_flatten)
-            ar = np.array(action_list)
-            idx, idy = np.where(ar==action)
-            state = (list(self.state_action_dict.keys())[list(self.state_action_dict.values()).index(action_list[int(idx)])])
+        if size_action > size_theta and size_action > size_theta_dot:
+            # Split along the action dim
+            boundary_action = statistics.median(action_list_flatten)
+            boundary_theta = np.inf
+            boundary_theta_dot = np.inf
+        elif size_theta > size_action and size_theta > size_theta_dot:
+            # Split along the theta dim
+            boundary_action = np.inf
+            boundary_theta = statistics.median(theta_list_flatten)
+            boundary_theta_dot = np.inf
         else:
-            state = statistics.median(state_list)
-            action = self.state_action_dict.get(state)
+            # Split along the theta_dot dim
+            boundary_action = np.inf
+            boundary_theta = np.inf
+            boundary_theta_dot = statistics.median(theta_dot_list_flatten)
+
         
         # offset
-        state = tuple([x+offset for x in state])
-        action += offset
+        # boundary_state = tuple([x+offset for x in boundary_state])
+        # boundary_action += offset
 
-        self.child_1: VariableResolution = VariableResolution((state, action))
-        self.child_2: VariableResolution = VariableResolution((state, action))
+        self.decision_boundary = np.array([boundary_theta, boundary_theta_dot, boundary_action])
+        self.child_1: VariableResolution = VariableResolution()
+        self.child_2: VariableResolution = VariableResolution()
 
 
 class Q_value:
@@ -483,6 +499,28 @@ class Q_value:
     def update(self, new_sample_state, new_sample_action, new_sample_Q):
         # Update the binary tree
         self.data.update_value(new_sample_state, new_sample_action, new_sample_Q)
+    
+    def estimate_max(self, state: Tuple[float, float]):
+        # get the maximum value and the corresponding action
+        action_list = self.data.state_action_dict[state]
+
+        if action_list:
+            mean_list = []
+            max_mean = 0
+
+            for action in action_list:
+                mean, _ = self.query(state, action)
+                mean_list.append(mean)
+                max_mean = mean if mean > max_mean else max_mean
+
+            best_action = action_list[mean_list.index(max_mean)]
+
+        else:
+            best_action = random.uniform(-5, 5)
+            max_mean, _ = self.query(state, best_action)
+
+        return best_action, max_mean
+
 
 def variable_resolution_q_learning():
     """
