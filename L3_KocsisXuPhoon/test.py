@@ -440,29 +440,31 @@ class VariableResolution:
     def update_value(self, new_sample_state, new_sample_action, new_sample_Q):
         new_theta, new_theta_dot = new_sample_state
         # No children, just take the value and update the statistics
-        if self.child_1 is None and self.child_2 is None:
-            self.sample_number += 1
-            a = 0.001
-            b = 2
-            # learning rate
-            alpha = 1 / (a * self.sample_number + b)
-            delta = new_sample_Q - self.q_mean
-            self.q_mean = self.q_mean + alpha * delta
-            self.q_variance = self.q_variance + alpha * ((delta * delta) - self.q_variance)
+        if self.decision_boundary is None:
+            if self.child_1 is None and self.child_2 is None:
+                self.sample_number += 1
+                a = 0.001
+                b = 2
+                # learning rate
+                alpha = 1 / (a * self.sample_number + b)
+                delta = new_sample_Q - self.q_mean
+                self.q_mean = self.q_mean + alpha * delta
+                self.q_variance = self.q_variance + alpha * ((delta * delta) - self.q_variance)
 
-            if new_sample_state not in self.state_action_dict:
-                self.state_action_dict[new_sample_state] = []
-            self.state_action_dict[new_sample_state].append(new_sample_action)
+                if new_sample_state not in self.state_action_dict:
+                    self.state_action_dict[new_sample_state] = []
+                self.state_action_dict[new_sample_state].append(new_sample_action)
 
-            # Splitting criterion
-            if self.q_variance > self.thr_var and self.sample_number > self.thr_n:
-                self.split()
+                # Splitting criterion
+                if self.q_variance > self.thr_var and self.sample_number > self.thr_n:
+                    self.split()
 
         # Has children, check the decision boundary and ask the children to proceed
-        if all(np.array([new_theta, new_theta_dot, new_sample_action]) < self.decision_boundary):
-            self.child_1.update_value(new_sample_state, new_sample_action, new_sample_Q)
         else:
-            self.child_2.update_value(new_sample_state, new_sample_action, new_sample_Q)
+            if all(np.array([new_theta, new_theta_dot, new_sample_action]) < self.decision_boundary):
+                self.child_1.update_value(new_sample_state, new_sample_action, new_sample_Q)
+            else:
+                self.child_2.update_value(new_sample_state, new_sample_action, new_sample_Q)
 
     def split(self, offset=0):
         # split state-action space in 2 halves along the dimension with the largest size
