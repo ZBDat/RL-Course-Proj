@@ -506,7 +506,6 @@ class VariableResolution:
 class QValue:
     def __init__(self):
         self.data = VariableResolution()
-        self.data.state_action_dict[(pi, 0)] = 0
 
     def query(self, state: Tuple[float, float], action: float) -> Tuple[float, float]:
         # Find the specific partition
