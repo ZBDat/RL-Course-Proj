@@ -1,11 +1,30 @@
 import logging
 import random
 import time
-from typing import Tuple, List
+from typing import Tuple, List, Dict, Any
 
 import matplotlib
 import matplotlib.pyplot as plt
 import numpy as np
+from numpy import pi
+
+matplotlib.use('TkAgg')
+
+logger = logging.getLogger('RLFR')
+
+
+def init_logger():
+    logger.setLevel(logging.DEBUG)
+
+    ch = logging.StreamHandler()
+    ch.setLevel(logging.DEBUG)
+
+    formatter = logging.Formatter('%(levelname)s\t| %(message)s')
+    ch.setFormatter(formatter)
+
+    logger.addHandler(ch)
+
+
 import statistics
 
 matplotlib.use('TkAgg')
@@ -252,8 +271,7 @@ class InvertedPendulumEnvironment:
         Resets the environment
         :return: The initial state
         """
-        self.state = (np.random.uniform(low=-np.pi, high=np.pi),
-                      np.random.uniform(low=-2 * np.pi, high=2 * np.pi))
+        self.state = (pi, 0)
         self.time = 0
         self.rewards = []
 
@@ -395,53 +413,59 @@ def environment_simulation():
         environment.wait_for_simulation()
 
     print("Done")
-       
+
 
 class VariableResolution:
-    def __init__(self, decision_boundary = None, thr_n = 20, thr_var = 1):
+    def __init__(self, decision_boundary=None, thr_n=13, thr_var=1.12):
         self.child_1: VariableResolution = None
         self.child_2: VariableResolution = None
-        self.decision_boundary = decision_boundary # (s,a)
+        self.decision_boundary = decision_boundary  # (s,a)
         self.sample_number = 0
         self.q_mean = 0
-        self.q_variance = 0
+        self.q_variance = 0.81
         self.state_action_dict = dict()
         # thresholds
         self.thr_n = thr_n
         self.thr_var = thr_var
 
     def get_value(self, state, action):
+        theta, theta_dot = state
         if self.child_1 is None and self.child_2 is None:
-            return (self.sample_number, self.q_mean, self.q_variance)
+            return self.sample_number, self.q_mean, self.q_variance
 
-        if (state, action) < self.decision_boundary:
-            self.child_1.get_value(state, action)
+        if all(np.array([theta, theta_dot, action]) < self.decision_boundary):
+            return self.child_1.get_value(state, action)
         else:
-            self.child_2.get_value(state, action)
+            return self.child_2.get_value(state, action)
 
     def update_value(self, new_sample_state, new_sample_action, new_sample_Q):
-        if self.child_1 is None and self.child_2 is None:
-            self.sample_number += 1
-            a = 0.001
-            b = 2
-            # learning rate
-            alpha = 1 / (a * self.sample_number + b)
-            delta = new_sample_Q - self.q_mean
-            self.q_mean = self.q_mean + alpha * delta
-            self.q_variance = self.q_variance + alpha * ((delta * delta) - self.q_variance)
+        new_theta, new_theta_dot = new_sample_state
+        # No children, just take the value and update the statistics
+        if self.decision_boundary is None:
+            if self.child_1 is None and self.child_2 is None:
+                self.sample_number += 1
+                a = 0.001
+                b = 2
+                # learning rate
+                alpha = 1 / (a * self.sample_number + b)
+                delta = new_sample_Q - self.q_mean
+                self.q_mean = self.q_mean + alpha * delta
+                self.q_variance = self.q_variance + alpha * ((delta * delta) - self.q_variance)
 
-            if new_sample_state not in self.state_action_dict:
-                self.state_action_dict[new_sample_state] = []
-            self.state_action_dict[new_sample_state].append(new_sample_action)
+                if new_sample_state not in self.state_action_dict:
+                    self.state_action_dict[new_sample_state] = []
+                self.state_action_dict[new_sample_state].append(new_sample_action)
 
-            # Splitting criterion
-            if self.q_variance > self.thr_var and self.sample_number > self.thr_n:
-                self.split()
+                # Splitting criterion
+                if self.q_variance > self.thr_var and self.sample_number > self.thr_n:
+                    self.split()
 
-        if (new_sample_state, new_sample_action) < self.decision_boundary:
-            self.child_1.update_value(new_sample_state, new_sample_action, new_sample_Q)
+        # Has children, check the decision boundary and ask the children to proceed
         else:
-            self.child_2.update_value(new_sample_state, new_sample_action, new_sample_Q)
+            if all(np.array([new_theta, new_theta_dot, new_sample_action]) < self.decision_boundary):
+                self.child_1.update_value(new_sample_state, new_sample_action, new_sample_Q)
+            else:
+                self.child_2.update_value(new_sample_state, new_sample_action, new_sample_Q)
 
     def split(self, offset=0):
         # split state-action space in 2 halves along the dimension with the largest size
@@ -449,33 +473,44 @@ class VariableResolution:
         action_list_flatten = [item for sublist in action_list for item in sublist]
         # size of the action dimension in Q table
         size_action = max(action_list_flatten) - min(action_list_flatten)
-        
+
         state_list = self.state_action_dict.keys()
+        theta_list_flatten = [state[0] for state in state_list]
+        theta_dot_list_flatten = [state[1] for state in state_list]
         # size of the state dimension in Q table
-        size_state = max(tuple(x-y for x,y in zip(max(state_list), min(state_list))))
+        size_theta = max(theta_list_flatten) - min(theta_list_flatten)
+        size_theta_dot = max(theta_dot_list_flatten) - min(theta_dot_list_flatten)
 
-        if size_action > size_state:
-            action = statistics.median(action_list_flatten)
-            ar = np.array(action_list)
-            idx, idy = np.where(ar==action)
-            state = (list(self.state_action_dict.keys())[list(self.state_action_dict.values()).index(action_list[int(idx)])])
+        if size_action > size_theta and size_action > size_theta_dot:
+            # Split along the action dim
+            boundary_action = statistics.median(action_list_flatten)
+            boundary_theta = np.inf
+            boundary_theta_dot = np.inf
+        elif size_theta > size_action and size_theta > size_theta_dot:
+            # Split along the theta dim
+            boundary_action = np.inf
+            boundary_theta = statistics.median(theta_list_flatten)
+            boundary_theta_dot = np.inf
         else:
-            state = statistics.median(state_list)
-            action = self.state_action_dict.get(state)
-        
-        # offset
-        state = tuple([x+offset for x in state])
-        action += offset
+            # Split along the theta_dot dim
+            boundary_action = np.inf
+            boundary_theta = np.inf
+            boundary_theta_dot = statistics.median(theta_dot_list_flatten)
 
-        self.child_1: VariableResolution = VariableResolution((state, action))
-        self.child_2: VariableResolution = VariableResolution((state, action))
+        # # offset
+        # boundary_state = tuple([x + offset for x in boundary_state])
+        # boundary_action += offset
+
+        self.decision_boundary = np.array([boundary_theta, boundary_theta_dot, boundary_action])
+        self.child_1: VariableResolution = VariableResolution()
+        self.child_2: VariableResolution = VariableResolution()
 
 
-class Q_value:
+class QValue:
     def __init__(self):
-        data = VariableResolution()
+        self.data = VariableResolution()
 
-    def query(self, state, action):
+    def query(self, state: Tuple[float, float], action: float) -> Tuple[float, float]:
         # Find the specific partition
         _, mean, variance = self.data.get_value(state, action)
         return mean, variance
@@ -484,14 +519,140 @@ class Q_value:
         # Update the binary tree
         self.data.update_value(new_sample_state, new_sample_action, new_sample_Q)
 
+    def estimate_max(self, state: Tuple[float, float]):
+        # get the maximum value and the corresponding action
+        action_list = np.linspace(-5, 5, 20)
+        q_list = []
+        mean_list = []
+
+        for action in action_list:
+            mean, variance = self.query(state, action)
+            q_rand = np.random.normal(mean, np.sqrt(variance))
+            q_list.append(q_rand)
+            mean_list.append(mean)
+
+        best_action = action_list[q_list.index(max(q_list))]
+        max_mean = max(mean_list)
+
+        return best_action, max_mean
+
+
 def variable_resolution_q_learning():
-    """
-    TODO for TBD - 2st week
-    Implement the variable resolution Q-learning algorithm
-    """
-    # TODO: Training
-    # TODO: Inference
-    pass
+    env = InvertedPendulumEnvironment()
+
+    # initialize
+    Q_value_estimate = QValue()
+
+    state = (pi, 0)
+    action = random.choice(np.linspace(-5, 5, 20))
+    Q_value_estimate.data.state_action_dict[state] = list([action])
+
+    # loop
+    num_episodes = 100
+    num_iterations = 500
+
+    eps = 0.8
+    gamma = 0.9
+
+    accumulated_reward = []
+
+    for e in range(num_episodes):
+
+        if e % 10 == 0:
+            print("episode", e)
+        # Training phase
+        # observe current state s
+        env.reset()
+
+        for i in range(num_iterations):
+
+            # execute a and get reward, observe new state s'
+            env.state = state
+            next_state, reward = env.step(action)
+
+            # estimate Q_max
+            best_action, Q_max = Q_value_estimate.estimate_max(next_state)
+
+            q = reward + gamma * Q_max
+
+            # update
+            Q_value_estimate.update(state, action, q)
+            state = next_state
+
+            # select an action according to the greedy policy
+            action = best_action if random.random() < eps else random.choice(np.linspace(-5, 5, 20))
+
+            if e % 10 == 0 & i % 200 == 0:
+                print(Q_value_estimate.query((0, 0), 0))
+
+        # Testing phase
+        env.reset()
+        test_action = random.choice(np.linspace(-5, 5, 20))
+        reward = 0
+
+        for i in range(num_iterations):
+
+            # execute the action
+            test_next_state, test_reward = env.step(test_action)
+
+            reward += test_reward
+
+            max_mean = -np.inf
+            best_test_next_action = 0
+
+            # select the best action based on the learned results
+            action_list = np.linspace(-5, 5, 20)
+            for test_next_action in action_list:
+                mean, _ = Q_value_estimate.query(test_next_state, test_next_action)
+
+                if mean > max_mean:
+                    best_test_next_action = test_next_action
+                    max_mean = mean
+
+                else:
+                    pass
+
+            test_action = best_test_next_action
+
+        accumulated_reward.append(reward)
+
+    # Animation
+    env.reset()
+    action = random.uniform(-5, 5)
+    for n in range(100):
+        # Apply the action
+        next_state, reward = env.step(action)
+
+        # Render the simulation if needed
+        env.render()
+
+        # Plot the rewards if needed
+        env.plot_reward()
+
+        # Sleep for the simulation time, if needed
+        env.wait_for_simulation()
+
+        # Choose the best action after the training
+        max_mean = -np.inf
+        best_test_next_action = 0
+
+        action_list = np.linspace(-5, 5, 20)
+        for next_action in action_list:
+            mean, _ = Q_value_estimate.query(next_state, next_action)
+
+            if mean > max_mean:
+                best_next_action = next_action
+                max_mean = mean
+
+            else:
+                pass
+
+        action = best_next_action
+
+
+    print("Done")
+
+    plt.plot(accumulated_reward)
 
 
 def set_seed(seed):
@@ -501,6 +662,8 @@ def set_seed(seed):
 
 if __name__ == "__main__":
     set_seed(0)
-    init_logger()
+    # init_logger()
+
     # test
-    environment_simulation()
+    # environment_simulation()
+    variable_resolution_q_learning()
