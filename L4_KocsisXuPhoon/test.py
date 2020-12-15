@@ -3,7 +3,7 @@ import random
 import matplotlib.pyplot as plt
 
 
-def gradient_descent(domain, y, start=0, use_true_gradient=False, ascent=False):
+def gradient_descent(domain, y, start=0, ascent=False):
     # define the function
     domain = domain
     y = y
@@ -77,10 +77,10 @@ if __name__ == "__main__":
     plt.plot(np.array(route_0), y(np.array(route_0)), 'r')
     plt.plot(np.array(route_1), y(np.array(route_1)), 'g')
     plt.plot(np.array(route_2), y(np.array(route_2)), 'black')
-    """ 
+
     plt.plot(np.array(route_00), y(np.array(route_00)), 'pink')
     plt.plot(np.array(route_00), y(np.array(route_00)), 'purple')
     plt.plot(np.array(route_00), y(np.array(route_00)), 'brown')
-    """
+
 
     plt.show()
