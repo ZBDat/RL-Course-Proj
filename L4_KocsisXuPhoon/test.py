@@ -11,7 +11,7 @@ def gradient_descent(domain, y, start=0, ascent=False):
     # parameters for the GD
     a = 0.01
     b = 10
-    momentum = 0
+    momentum = 0.1
     mu = 0.9
     threshold = 0.001
     num_iteration = 1000
@@ -73,14 +73,28 @@ if __name__ == "__main__":
     route_11 = gradient_descent(domain, y, start=1, ascent=True)
     route_22 = gradient_descent(domain, y, start=2, ascent=True)
 
+    plt.figure()
     plt.plot(domain, y(domain))
     plt.plot(np.array(route_0), y(np.array(route_0)), 'r')
+
+    plt.figure()
+    plt.plot(domain, y(domain))
     plt.plot(np.array(route_1), y(np.array(route_1)), 'g')
+
+    plt.figure()
+    plt.plot(domain, y(domain))
     plt.plot(np.array(route_2), y(np.array(route_2)), 'black')
 
+    plt.figure()
+    plt.plot(domain, y(domain))
     plt.plot(np.array(route_00), y(np.array(route_00)), 'pink')
-    plt.plot(np.array(route_00), y(np.array(route_00)), 'purple')
-    plt.plot(np.array(route_00), y(np.array(route_00)), 'brown')
 
+    plt.figure()
+    plt.plot(domain, y(domain))
+    plt.plot(np.array(route_11), y(np.array(route_11)), 'purple')
+
+    plt.figure()
+    plt.plot(domain, y(domain))
+    plt.plot(np.array(route_22), y(np.array(route_22)), 'brown')
 
     plt.show()
