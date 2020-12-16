@@ -416,7 +416,7 @@ def environment_simulation():
 
 
 class VariableResolution:
-    def __init__(self, decision_boundary=None, thr_n=13, thr_var=1.12):
+    def __init__(self, decision_boundary=None, thr_n=20, thr_var=1.12):
         self.child_1: VariableResolution = None
         self.child_2: VariableResolution = None
         self.decision_boundary = decision_boundary  # (s,a)
@@ -445,7 +445,7 @@ class VariableResolution:
             if self.child_1 is None and self.child_2 is None:
                 self.sample_number += 1
                 a = 0.001
-                b = 2
+                b = 10
                 # learning rate
                 alpha = 1 / (a * self.sample_number + b)
                 delta = new_sample_Q - self.q_mean
@@ -544,15 +544,15 @@ def variable_resolution_q_learning():
     Q_value_estimate = QValue()
 
     state = (pi, 0)
-    action = random.choice(np.linspace(-5, 5, 20))
+    action = random.choice(np.linspace(-5, 5, 100))
     Q_value_estimate.data.state_action_dict[state] = list([action])
 
     # loop
     num_episodes = 100
-    num_iterations = 500
+    num_iterations = 1000
 
-    eps = 0.8
-    gamma = 0.9
+    eps0 = 1.25
+    gamma = 0.96
 
     accumulated_reward = []
 
@@ -580,14 +580,14 @@ def variable_resolution_q_learning():
             state = next_state
 
             # select an action according to the greedy policy
-            action = best_action if random.random() < eps else random.choice(np.linspace(-5, 5, 20))
+            action = best_action if random.random() > 1/(eps0 + 0.001 * i) else random.choice(np.linspace(-5, 5, 100))
 
             if e % 10 == 0 & i % 200 == 0:
                 print(Q_value_estimate.query((0, 0), 0))
 
         # Testing phase
         env.reset()
-        test_action = random.choice(np.linspace(-5, 5, 20))
+        test_action = random.choice(np.linspace(-5, 5, 100))
         reward = 0
 
         for i in range(num_iterations):
@@ -601,7 +601,7 @@ def variable_resolution_q_learning():
             best_test_next_action = 0
 
             # select the best action based on the learned results
-            action_list = np.linspace(-5, 5, 20)
+            action_list = np.linspace(-5, 5, 100)
             for test_next_action in action_list:
                 mean, _ = Q_value_estimate.query(test_next_state, test_next_action)
 
@@ -615,7 +615,7 @@ def variable_resolution_q_learning():
             test_action = best_test_next_action
 
         accumulated_reward.append(reward)
-
+    """
     # Animation
     env.reset()
     action = random.uniform(-5, 5)
@@ -648,9 +648,7 @@ def variable_resolution_q_learning():
                 pass
 
         action = best_next_action
-
-
-    print("Done")
+    """
 
     plt.plot(accumulated_reward)
 
