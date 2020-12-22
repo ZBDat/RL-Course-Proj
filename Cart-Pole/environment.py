@@ -27,6 +27,8 @@ class CartPoleEnvironment:
         self.pole_length = pole_length
         self.friction = friction
         self.gravityConstant = 9.8
+        self.rewardMatrix = np.array([[1, self.pole_length, 0], [self.pole_length, self.pole_length ** 2, 0],
+                                      [0, 0, self.pole_length ** 2]])
 
         self._displacementLimit = (-6, 6)
         self._velocityLimit = (-10, 10)
@@ -64,31 +66,72 @@ class CartPoleEnvironment:
             print("action out of range, clipped")
 
         x, v, theta, omega = self.state
+
+        v_min, v_max = (-10, 10)
+        x_min, x_max = (-6, 6)
+        omega_min, omega_max = (-10, 10)
+        theta_min, theta_max = (-pi, pi)
+
         m1 = self.cart_mass
         m2 = self.pole_mass
         l = self.pole_length
         b = self.friction
         g = self.gravityConstant
+        delta_t = self._update_interval
+
+        # calculate the reward
+        j = np.array([x, np.sin(theta), np.cos(theta)])
+        j_target = np.array([0, 0, 1])
+        quad = lambda A, vec: (np.dot(vec.T, np.dot(A, vec)))  # quadratic form
+        reward = -1 * (1 - np.exp(-0.5 * quad(self.rewardMatrix, (j - j_target))))
 
         # linear acceleration
         alpha = (2 * m2 * l * omega ** 2 * np.sin(theta) - 3 * m2 * g * np.sin(theta) * np.cos(
             theta) + 4 * action - 4 * b * v) / (4 * (m1 + m2) - 3 * m2 * np.cos(theta) ** 2)
 
         # angular acceleration
-        beta =
+        beta = (3 * m2 * l * omega ** 2 * np.sin(theta) * np.cos(theta) - 6 * (m1 + m2) * g * np.sin(theta) + 6 * (
+                    action - b * v) * np.cos(
+            theta)) / (4 * l * (m1 + m2) - 3 * m2 * l * np.cos(theta) ** 2)
+
+        # Euler method
+        v = v + delta_t * alpha
+        if v > v_max or v < v_min:
+            v = np.clip(v, v_min, v_max)
+
+        x = x + delta_t * v + 1 / 2 * delta_t ** 2 * alpha
+        if x > x_max or x < x_min:
+            x = np.clip(x, x_min, x_max)
+
+        omega = omega + delta_t * beta
+        if omega > omega_max or omega < omega_min:
+            omega = np.clip(omega, omega_min, omega_max)
+
+        theta = theta + delta_t * omega + 1 / 2 * delta_t ** 2 * beta
+        if theta > theta_max or theta < theta_min:
+            theta = np.clip(theta, theta_min, theta_max)
+
+        # give the next state and reward
+        next_state = x, v, theta, omega
+        self.rewards.append(reward)
+
+        return next_state, reward
 
 
-def run_test(environment: CartPoleEnvironment):
+def run_test():
     """
     Use this function to test if the environment setup is functioning
     :param environment:
     :return:
     """
-    ...
-
-
-if __name__ == '__main__':
     environment = CartPoleEnvironment(cart_mass=0.5, pole_mass=0.5, pole_length=0.6, friction=0.1,
                                       action_range=(-10, 10),
                                       action_interval=0.1, update_interval=0.01)
-    run_test(environment)
+
+    environment.reset()
+    environment.step(5)
+
+
+if __name__ == '__main__':
+
+    run_test()
