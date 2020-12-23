@@ -155,7 +155,7 @@ class VariableResolutionApproximator(FunctionApproximator):
 
 
 class GMMApproximator(FunctionApproximator):
-    def __init__(self, input_dim, error_threshold, density_threshold, a = 0.5, b = 1):
+    def __init__(self, input_dim, error_threshold, density_threshold, a=0.5, b=1):
         """Initialize the GMM with 1 Gaussian"""
         self.input_dim = input_dim
         self.error_threshold = error_threshold
@@ -164,18 +164,23 @@ class GMMApproximator(FunctionApproximator):
         self.b = b
 
         self.D = self.input_dim + 1
-        self.d = np.array([10, 2])
+        self.d = np.array([10, 10])
         self.volume_eps = np.prod(self.d / 10)
         self.num_samples = 0
         self.gaussian_weights = np.array([1])
         self.gaussian_means = np.zeros(self.D)[None, :]
         self.gaussian_covariances = np.eye(self.D)[None, :]
 
-        self.sum_zero_order = np.array([1])                       # [1]_t
-        self.sum_first_order = np.zeros(self.D)[None, :]   # [z]_t
-        self.sum_second_order = np.zeros((self.D, self.D))[None, :]    # [z*z.T]_t
+        self.sum_zero_order = np.array([1])  # [1]_t
+        self.sum_first_order = np.zeros(self.D)[None, :]  # [z]_t
+        self.sum_second_order = np.zeros((self.D, self.D))[None, :]  # [z*z.T]_t
 
+        self.probs_cache = None
+        # self.pos_cache = None
 
+    @property
+    def number_of_gaussians(self):
+        return len(self.gaussian_weights)
 
     def query(self, x: List[float]) -> Tuple[float, float]:
         x = np.array(x)
@@ -189,6 +194,7 @@ class GMMApproximator(FunctionApproximator):
         beta = np.array(
             [weight * self._multivariate_pdf(x, mean, cov) for weight, mean, cov in
              zip(self.gaussian_weights, gaussian_means_x, gaussian_covariances_xx)])
+        beta = beta / np.sum(beta)
 
         gaussian_covariances_xx_inv = np.array([np.linalg.inv(gaussian_covariance_xx)
                                                 for gaussian_covariance_xx in
@@ -218,63 +224,76 @@ class GMMApproximator(FunctionApproximator):
     def update(self, x: List[float], y: float):
         position_vector = np.array(x + [y])
         # E step - Calculate the activations
-        w = self.get_activations(position_vector)
+        self.probs_cache = self._get_probs(position_vector)
+        self.pos_cache = position_vector
+        w = self.gaussian_weights * self.probs_cache
+        density = np.sum(w)
+        w = w / density
 
         # M step - Update the parameters
         current_value_zero_order = w
         current_value_first_order = w[:, None] * position_vector[None, :]
-        current_value_second_order = w[:, None, None] * np.outer(position_vector, position_vector)[None, :]
+        current_value_second_order = w[:, None, None] * np.outer(position_vector, position_vector)[
+                                                        None, :]
 
         # Time-dependent local adjusted forgetting
-        local_num_of_samples = self.num_samples * self.get_density(position_vector) * self.volume_eps
+        local_num_of_samples = self.num_samples * density * self.volume_eps
         remind_factor = 1 - (1 - self.a) / (self.a * local_num_of_samples + self.b)
 
         keep_previous_value_factor = np.power(remind_factor, w)
         apply_new_value_factor = (1 - keep_previous_value_factor) / (1 - remind_factor)
 
-        # remind_factor = np.array([1.0])
-        # apply_new_value_factor = remind_factor
-
         self.sum_zero_order = keep_previous_value_factor * self.sum_zero_order + apply_new_value_factor * current_value_zero_order
-        self.sum_first_order = keep_previous_value_factor[:, None] * self.sum_first_order + apply_new_value_factor[:, None] * current_value_first_order
-        self.sum_second_order = keep_previous_value_factor[:, None, None] * self.sum_second_order + apply_new_value_factor[:, None, None] * current_value_second_order
+        self.sum_first_order = keep_previous_value_factor[:,
+                               None] * self.sum_first_order + apply_new_value_factor[:,
+                                                              None] * current_value_first_order
+        self.sum_second_order = keep_previous_value_factor[:, None,
+                                None] * self.sum_second_order + apply_new_value_factor[:, None,
+                                                                None] * current_value_second_order
 
         self.num_samples = self.num_samples + 1
-        self.gaussian_weights = self.sum_zero_order / np.sum(self.sum_zero_order)
-        self.gaussian_means = self.sum_first_order / self.sum_zero_order[:, None]
-        self.gaussian_covariances = self.sum_second_order / self.sum_zero_order[:, None, None] \
-                                    - np.array([np.outer(gaussian_mean, gaussian_mean)
-                                                for gaussian_mean in self.gaussian_means])
-
-        assert not np.any(np.linalg.det(self.gaussian_covariances) < 0)
+        self._update_gaussians()
 
         # Check whether new Gaussian is required
         mu, std = self.query(x)
         approx_error = (y - mu) ** 2
 
         if approx_error >= self.error_threshold:
-            density = self.get_density(position_vector)
+            self.probs_cache = self._get_probs(position_vector)
+            density = np.sum(self.gaussian_weights * self.probs_cache)
             if density <= self.density_threshold:
                 self.generate_gaussian(position_vector)
+            else:
+                self.probs_cache = None
 
     def estimate_max(self, x: List[float]):
         # return best_action, max_mean
         raise NotImplementedError()
 
-    def get_activations(self, position_vector: np.ndarray):
-        w = np.array(
-            [weight * self._multivariate_pdf(position_vector, mean, cov) for weight, mean, cov in
-             zip(self.gaussian_weights, self.gaussian_means, self.gaussian_covariances)])
-        w = w / np.sum(w)
-        assert not np.any(np.isnan(w))
-        return w
+    def _update_gaussians(self):
+        self.gaussian_weights = self.sum_zero_order / np.sum(self.sum_zero_order)
+        self.gaussian_means = self.sum_first_order / self.sum_zero_order[:, None]
+        self.gaussian_covariances = self.sum_second_order / self.sum_zero_order[:, None, None] \
+                                    - np.array([np.outer(gaussian_mean, gaussian_mean)
+                                                for gaussian_mean in self.gaussian_means])
+        self.probs_cache = None
+        # self.pos_cache = None
 
-    # def bracket_operation(self, w: np.ndarray, index: int, values):
-    #     result = np.sum(w[:index] * values[:index])
-    #     return result
+    # def get_activations(self, position_vector: np.ndarray):
+    #     w = np.array(
+    #         [weight * self._multivariate_pdf(position_vector, mean, cov) for weight, mean, cov in
+    #          zip(self.gaussian_weights, self.gaussian_means, self.gaussian_covariances)])
+    #     w = w / np.sum(w)
+    #     return w
+
+    # def get_probs(self, position_vector: np.ndarray):
+    #     if self.pos_cache is not None:
+    #         return self.probs_cache
+
 
     def plot_gaussians(self, ax, facecolor='none', edgecolor='red', **kwargs):
-        for weight, mean, covariance in zip(self.gaussian_weights, self.gaussian_means, self.gaussian_covariances):
+        for weight, mean, covariance in zip(self.gaussian_weights, self.gaussian_means,
+                                            self.gaussian_covariances):
             pearson = covariance[0, 1] / np.sqrt(covariance[0, 0] * covariance[1, 1])
             # Using a special case to obtain the eigenvalues of this
             # two-dimensionl dataset.
@@ -303,45 +322,36 @@ class GMMApproximator(FunctionApproximator):
 
             ellipse.set_transform(transf + ax.transData)
             ax.add_artist(ellipse)
-        plt.show()
 
-    def get_density(self, position_vector: np.ndarray):
-        result =  np.sum([weight * self._multivariate_pdf(position_vector, mean, cov)
-                       for weight, mean, cov in
-                       zip(self.gaussian_weights, self.gaussian_means, self.gaussian_covariances)])
-        return result
-
-    def generate_gaussian(self, position: np.ndarray):
-        w_new = 0.8
+    def generate_gaussian(self, position_vector: np.ndarray):
+        w_new = 0.9
         zero_order_value = 1
-        num_of_gaussians = len(self.gaussian_weights)
 
-        density = self.get_density(position)
+        sum_zero_density = np.sum(self.sum_zero_order * self.probs_cache)
 
         C = 1 / np.sqrt(2 * np.pi) \
             * np.power(
-            np.square((w_new / (1 - w_new)) * (density / zero_order_value)) * np.prod(np.square(self.d))
+            np.square((w_new / (1 - w_new)) * (sum_zero_density / zero_order_value)) * np.prod(
+                np.square(self.d))
             , -1 / (2 * self.D))
 
-        new_weight = np.array([1 / num_of_gaussians])
-        new_mean = position[None, :]
+        new_mean = position_vector[None, :]
         new_covariance = np.diag(np.square(C * self.d))[None, :]
 
         new_zero_order_value = np.array([1.0])
-        new_first_order_value = position[None, :]
+        new_first_order_value = position_vector[None, :]
         new_second_order_value = new_covariance + np.outer(new_mean, new_mean)[None, :]
-
-        self.gaussian_weights = np.concatenate((self.gaussian_weights, new_weight))
-        self.gaussian_means = np.concatenate((self.gaussian_means, new_mean))
-        self.gaussian_covariances = np.concatenate((self.gaussian_covariances, new_covariance))
 
         self.sum_zero_order = np.concatenate((self.sum_zero_order, new_zero_order_value))
         self.sum_first_order = np.concatenate((self.sum_first_order, new_first_order_value))
         self.sum_second_order = np.concatenate((self.sum_second_order, new_second_order_value))
 
-        self.gaussian_weights = self.gaussian_weights * num_of_gaussians / (num_of_gaussians + 1)
+        self._update_gaussians()
 
-        # self.sum_zero_order = self.sum_zero_order * num_of_gaussians / (num_of_gaussians + 1)
+    def _get_probs(self, position_vector: np.ndarray):
+        return np.array([self._multivariate_pdf(position_vector, mean, cov)
+                          for mean, cov in
+                          zip(self.gaussian_means, self.gaussian_covariances)])
 
     def _multivariate_pdf(self, vector: np.ndarray, mean: np.ndarray, cov: np.ndarray):
         """
@@ -354,8 +364,8 @@ class GMMApproximator(FunctionApproximator):
         error = vector - mean
         quadratic_form = np.dot(np.dot(error, np.linalg.inv(cov)),
                                 np.transpose(error))
-        result = np.power(2 * np.pi, - self.D / 2) / np.sqrt(np.linalg.det(cov)) * np.exp(-.5 * quadratic_form) + np.finfo(float).eps
-        assert not np.isinf(result)
+        result = np.power(2 * np.pi, - self.D / 2) / np.sqrt(np.linalg.det(cov)) * np.exp(
+            -.5 * quadratic_form) + np.finfo(float).eps
         return result
 
 
@@ -367,24 +377,20 @@ def exercise_1():
     func_to_approximate = np.sin
     input_interval = [-5, 5]
     input_step = 0.1
-    mse_threshold = 0.1
+    mse_threshold = 5e-4
 
     input_values_forth = np.arange(input_interval[0], input_interval[1] + input_step, input_step)
     output_values_forth = [func_to_approximate(x_t) for x_t in input_values_forth]
 
     input_values_back = np.flip(input_values_forth)
-    output_values_forth = np.flip(output_values_forth)
+    output_values_back = np.flip(output_values_forth)
 
-    epoch_swap_samples = [(input_values_back, output_values_forth),
+    epoch_swap_samples = [(input_values_back, output_values_back),
                           (input_values_forth, output_values_forth)]
 
     # Initialize the approximator
-    approximator = GMMApproximator(input_dim=1, error_threshold=0.2, density_threshold=5.0)
-    plt.figure("GMM Approximator")
-    ax = plt.gca()
-    ax.set_aspect('equal')
-    plt.ion()
-    plt.show()
+    approximator = GMMApproximator(input_dim=1, error_threshold=1e-5, density_threshold=0.1, a=0.9,
+                                   b=1)
 
     # Training loop
     epoch_count = 0
@@ -397,11 +403,7 @@ def exercise_1():
             # Get observation
             for x_t, y_t in zip(input_swap_samples, output_swap_samples):
                 # Update the approximator
-                plt.cla()
-                plt.plot(input_values_forth, -output_values_forth)
-                approximator.plot_gaussians(ax)
                 approximator.update([x_t], y_t)
-
 
             # Estimate the MSE
             predictions = [approximator.query(x_t) for x_t in input_values_forth]
@@ -412,8 +414,10 @@ def exercise_1():
             mse_values.append(mse)
 
         epoch_count += 1
-        print(f"\r Epoch: {epoch_count}, MSE: {mse}", end='')
-        if mse <= mse_threshold * epoch_count:
+        print(
+            f"\r Epoch: {epoch_count}, MSE: {mse}, Number of Gaussians: {approximator.number_of_gaussians}",
+            end='')
+        if mse <= mse_threshold:
             break
 
     print(
@@ -422,14 +426,33 @@ def exercise_1():
 
     # Plot the MSE evolution
     plt.figure("MSE evolution")
+    plt.title = "Function approximation with GMM - MSE evolution"
+    plt.xlabel("iteration")
+    plt.xlabel("MSE")
     plt.plot(mse_values)
 
+    # Plot the Gaussians
+    plt.figure("GMM Approximator")
+    ax = plt.gca()
+    ax.set_aspect('equal')
+    plt.title = "Gaussians of the GMM"
+    plt.xlabel("x")
+    plt.xlabel("y = sin(x)")
+    plt.plot(input_values_forth, output_values_forth)
+    approximator.plot_gaussians(ax)
+
     # Plot the approcimation
-    plt.figure("Function approximation")
+    plt.figure("Function approximation with GMM")
+    ax = plt.gca()
+    ax.set_aspect('equal')
+    plt.title = "Function approximation with GMM"
+    plt.xlabel("x")
+    plt.xlabel("y = sin(x)")
     plt.plot(input_values_forth, y_pred)
     plt.plot(input_values_forth, output_values_forth)
     plt.fill_between(input_values_forth, y_pred - y_std, y_pred + y_std, alpha=0.1)
 
+    plt.ioff()
     plt.show()
 
 
