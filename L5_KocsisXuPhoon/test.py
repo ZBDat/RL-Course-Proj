@@ -164,7 +164,7 @@ class GMMApproximator(FunctionApproximator):
         self.b = b
 
         self.D = self.input_dim + 1
-        self.d = np.array([10, 10])
+        self.d = np.array([10, 2])
         self.volume_eps = np.prod(self.d / 10)
         self.num_samples = 0
         self.gaussian_weights = np.array([1])
@@ -191,34 +191,25 @@ class GMMApproximator(FunctionApproximator):
         gaussian_covariances_yx = self.gaussian_covariances[:, -1, :-1]
         gaussian_covariances_yy = self.gaussian_covariances[:, -1, -1]
 
-        beta = np.array(
-            [weight * self._multivariate_pdf(x, mean, cov) for weight, mean, cov in
-             zip(self.gaussian_weights, gaussian_means_x, gaussian_covariances_xx)])
+        beta = self.gaussian_weights * self._multivariate_pdf(x, gaussian_means_x,
+                                                              gaussian_covariances_xx)
         beta = beta / np.sum(beta)
 
-        gaussian_covariances_xx_inv = np.array([np.linalg.inv(gaussian_covariance_xx)
-                                                for gaussian_covariance_xx in
-                                                gaussian_covariances_xx])
-        gaussian_covariances_yx_xx_inv = np.array(
-            [np.dot(gaussian_covariance_yx, gaussian_covariance_xx_inv)
-             for gaussian_covariance_yx, gaussian_covariance_xx_inv in
-             zip(gaussian_covariances_yx, gaussian_covariances_xx_inv)])
+        gaussian_covariances_xx_inv = np.linalg.inv(gaussian_covariances_xx)
+        gaussian_covariances_yx_xx_inv = np.sum(
+            gaussian_covariances_yx[:, None, :] * gaussian_covariances_xx_inv, axis=-1)
 
         gaussian_means_y = self.gaussian_means[:, -1]
         distances_to_mean = x - gaussian_means_x
 
-        means = gaussian_means_y + np.array(
-            [np.dot(gaussian_covariance_yx_xx_inv, distance_to_mean)
-             for gaussian_covariance_yx_xx_inv, distance_to_mean in
-             zip(gaussian_covariances_yx_xx_inv, distances_to_mean)])
+        means = gaussian_means_y + np.sum(gaussian_covariances_yx_xx_inv * distances_to_mean,
+                                          axis=-1)
         mean = np.sum(beta * means)
 
-        variances = gaussian_covariances_yy - np.array(
-            [np.dot(gaussian_covariance_yx_xx_inv, gaussian_covariance_xy)
-             for gaussian_covariance_yx_xx_inv, gaussian_covariance_xy in
-             zip(gaussian_covariances_yx_xx_inv, gaussian_covariances_xy)])
-
+        variances = gaussian_covariances_yy - np.sum(
+            gaussian_covariances_yx_xx_inv * gaussian_covariances_xy, axis=-1)
         variance = np.sum(beta * (variances + np.square(means - mean)))
+
         return mean, variance
 
     def update(self, x: List[float], y: float):
@@ -244,12 +235,10 @@ class GMMApproximator(FunctionApproximator):
         apply_new_value_factor = (1 - keep_previous_value_factor) / (1 - remind_factor)
 
         self.sum_zero_order = keep_previous_value_factor * self.sum_zero_order + apply_new_value_factor * current_value_zero_order
-        self.sum_first_order = keep_previous_value_factor[:,
-                               None] * self.sum_first_order + apply_new_value_factor[:,
-                                                              None] * current_value_first_order
-        self.sum_second_order = keep_previous_value_factor[:, None,
-                                None] * self.sum_second_order + apply_new_value_factor[:, None,
-                                                                None] * current_value_second_order
+        self.sum_first_order = keep_previous_value_factor[:, None] * self.sum_first_order \
+                               + apply_new_value_factor[:,None] * current_value_first_order
+        self.sum_second_order = keep_previous_value_factor[:, None, None] * self.sum_second_order \
+                                + apply_new_value_factor[:, None, None] * current_value_second_order
 
         self.num_samples = self.num_samples + 1
         self._update_gaussians()
@@ -274,8 +263,9 @@ class GMMApproximator(FunctionApproximator):
         self.gaussian_weights = self.sum_zero_order / np.sum(self.sum_zero_order)
         self.gaussian_means = self.sum_first_order / self.sum_zero_order[:, None]
         self.gaussian_covariances = self.sum_second_order / self.sum_zero_order[:, None, None] \
-                                    - np.array([np.outer(gaussian_mean, gaussian_mean)
-                                                for gaussian_mean in self.gaussian_means])
+                                    - self.gaussian_means[:, :, None] * self.gaussian_means[:, None,
+                                                                        :]
+
         self.probs_cache = None
         # self.pos_cache = None
 
@@ -289,7 +279,6 @@ class GMMApproximator(FunctionApproximator):
     # def get_probs(self, position_vector: np.ndarray):
     #     if self.pos_cache is not None:
     #         return self.probs_cache
-
 
     def plot_gaussians(self, ax, facecolor='none', edgecolor='red', **kwargs):
         for weight, mean, covariance in zip(self.gaussian_weights, self.gaussian_means,
@@ -349,9 +338,15 @@ class GMMApproximator(FunctionApproximator):
         self._update_gaussians()
 
     def _get_probs(self, position_vector: np.ndarray):
-        return np.array([self._multivariate_pdf(position_vector, mean, cov)
-                          for mean, cov in
-                          zip(self.gaussian_means, self.gaussian_covariances)])
+        return self._multivariate_pdf(position_vector, self.gaussian_means,
+                                      self.gaussian_covariances)
+
+    # def _pdf(self, position_vector: np.ndarray):
+    #     error = position_vector - self.gaussian_means
+    #     quadratic_form = np.sum(np.sum(error[:, None, :] * np.linalg.inv(self.gaussian_covariances), axis=-1) * error, axis=-1)
+    #     result = np.power(2 * np.pi, - self.D / 2) / np.sqrt(np.linalg.det(self.gaussian_covariances)) * np.exp(
+    #         -.5 * quadratic_form) + np.finfo(float).eps
+    #     return result
 
     def _multivariate_pdf(self, vector: np.ndarray, mean: np.ndarray, cov: np.ndarray):
         """
@@ -362,9 +357,11 @@ class GMMApproximator(FunctionApproximator):
         :return:
         """
         error = vector - mean
-        quadratic_form = np.dot(np.dot(error, np.linalg.inv(cov)),
-                                np.transpose(error))
-        result = np.power(2 * np.pi, - self.D / 2) / np.sqrt(np.linalg.det(cov)) * np.exp(
+        quadratic_form = np.sum(
+            np.sum(error[:, None, :] * np.linalg.inv(cov), axis=-1) * error,
+            axis=-1)
+        result = np.power(2 * np.pi, - self.D / 2) / np.sqrt(
+            np.linalg.det(cov)) * np.exp(
             -.5 * quadratic_form) + np.finfo(float).eps
         return result
 
@@ -374,10 +371,11 @@ def exercise_1():
     Function approximation of sinus using GMM
     """
     # Define variables
+
     func_to_approximate = np.sin
     input_interval = [-5, 5]
     input_step = 0.1
-    mse_threshold = 5e-4
+    mse_threshold = 5e-3
 
     input_values_forth = np.arange(input_interval[0], input_interval[1] + input_step, input_step)
     output_values_forth = [func_to_approximate(x_t) for x_t in input_values_forth]
@@ -389,7 +387,7 @@ def exercise_1():
                           (input_values_forth, output_values_forth)]
 
     # Initialize the approximator
-    approximator = GMMApproximator(input_dim=1, error_threshold=1e-5, density_threshold=0.1, a=0.9,
+    approximator = GMMApproximator(input_dim=1, error_threshold=1e-3, density_threshold=0.1, a=0.9,
                                    b=1)
 
     # Training loop
@@ -403,6 +401,7 @@ def exercise_1():
             # Get observation
             for x_t, y_t in zip(input_swap_samples, output_swap_samples):
                 # Update the approximator
+                # y_t += np.random.normal(0, 0.5)
                 approximator.update([x_t], y_t)
 
             # Estimate the MSE
