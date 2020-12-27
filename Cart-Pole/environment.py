@@ -2,10 +2,10 @@ import random
 import time
 from typing import Tuple, List, Dict, Any
 
-import matplotlib
-import matplotlib.pyplot as plt
 import numpy as np
 from numpy import pi
+
+from Cart-Pole.Renderer import Renderer
 
 
 class CartPoleEnvironment:
@@ -91,7 +91,7 @@ class CartPoleEnvironment:
 
         # angular acceleration
         beta = (3 * m2 * l * omega ** 2 * np.sin(theta) * np.cos(theta) - 6 * (m1 + m2) * g * np.sin(theta) + 6 * (
-                    action - b * v) * np.cos(
+                action - b * v) * np.cos(
             theta)) / (4 * l * (m1 + m2) - 3 * m2 * l * np.cos(theta) ** 2)
 
         # Euler method
@@ -113,6 +113,7 @@ class CartPoleEnvironment:
 
         # give the next state and reward
         next_state = x, v, theta, omega
+        self.state = next_state
         self.rewards.append(reward)
 
         return next_state, reward
@@ -133,5 +134,4 @@ def run_test():
 
 
 if __name__ == '__main__':
-
     run_test()
