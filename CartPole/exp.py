@@ -99,7 +99,7 @@ def animate(i):
 
 
 ani = animation.FuncAnimation(fig, animate, np.arange(1, len(y)),
-                              interval=30, blit=True, init_func=init)
+                              interval=30, blit=False, init_func=init)
 
 # frequency domain plot
 # ax = fig.add_subplot(132,xlim=(-1,1))

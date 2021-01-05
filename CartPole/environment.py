@@ -1,17 +1,17 @@
 import random
-import time
+
 from typing import Tuple, List, Dict, Any
 
 import numpy as np
 from numpy import pi
 
-from Cart-Pole.Renderer import Renderer
+from CartPole.Renderer import Renderer
 
 
 class CartPoleEnvironment:
 
     def __init__(self, cart_mass=0.5, pole_mass=0.5, pole_length=0.6, friction=0.1, action_range=(-10, 10),
-                 action_interval=0.1, update_interval=0.01):
+                 action_interval=0.1, update_interval=0.01, use_renderer=True):
         """
         Physical parameters for the simulation
         :param cart_mass: mass of the translational moving part
@@ -21,6 +21,7 @@ class CartPoleEnvironment:
         :param action_range: range of the external force F
         :param action_interval: the time interval for the new action selection
         :param update_interval: the time interval for the state update
+        :param use_renderer: whether to use the renderer to animate the results
         """
         self.cart_mass = cart_mass
         self.pole_mass = pole_mass
@@ -42,6 +43,9 @@ class CartPoleEnvironment:
         self.state: Tuple[float, float, float, float] or None = None
         self.time: float or None = None
         self.rewards: List[float] or None = None
+
+        if use_renderer:
+            self.renderer = Renderer(length=self.pole_length, radius=0.1, dt=0.1)
 
     def reset(self) -> Tuple[float, float, float, float]:
         """
@@ -117,6 +121,9 @@ class CartPoleEnvironment:
         self.rewards.append(reward)
 
         return next_state, reward
+
+    def render(self):
+        ...
 
 
 def run_test():
