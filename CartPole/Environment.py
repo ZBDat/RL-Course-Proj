@@ -1,5 +1,3 @@
-import random
-
 from typing import Tuple, List, Dict, Any
 
 import numpy as np
@@ -42,10 +40,13 @@ class CartPoleEnvironment:
 
         self.state: Tuple[float, float, float, float] or None = None
         self.time: float or None = None
-        self.rewards: List[float] or None = None
+        self.rewards: List[float] or None = []
+        self.state_list: List[Tuple[float, float, float, float]] or None = []
 
-        if use_renderer:
-            self.renderer = Renderer(length=self.pole_length, radius=0.1, dt=0.1)
+        self.state_reward_dict = {}
+
+        self.use_renderer = use_renderer
+        self.renderer = None
 
     def reset(self) -> Tuple[float, float, float, float]:
         """
@@ -54,9 +55,27 @@ class CartPoleEnvironment:
         """
         self.state = (0, 0, pi, 0)
         self.time = 0
-        self.rewards = []
+        self.rewards.append(self.get_reward(self.state))
+        self.state_list.append(self.state)
+
+        self.state_reward_dict[self.state_list[0]] = self.rewards[0]
 
         return self.state
+
+    def get_reward(self, state: Tuple[float, float, float, float]):
+        """
+        Calculate the reward corresponding to a state
+        :param state: state of the environment
+        :return: reward
+        """
+        x, v, theta, omega = state
+
+        j = np.array([x, np.sin(theta), np.cos(theta)])
+        j_target = np.array([0, 0, 1])
+        quad = lambda A, vec: (np.dot(vec.T, np.dot(A, vec)))  # quadratic form
+        reward = -1 * (1 - np.exp(-0.5 * quad(self.rewardMatrix, (j - j_target))))
+
+        return reward
 
     def step(self, action) -> Tuple[Tuple[float, float, float, float], float]:
         """
@@ -81,64 +100,83 @@ class CartPoleEnvironment:
         l = self.pole_length
         b = self.friction
         g = self.gravityConstant
-        delta_t = self._update_interval
 
         # calculate the reward
-        j = np.array([x, np.sin(theta), np.cos(theta)])
-        j_target = np.array([0, 0, 1])
-        quad = lambda A, vec: (np.dot(vec.T, np.dot(A, vec)))  # quadratic form
-        reward = -1 * (1 - np.exp(-0.5 * quad(self.rewardMatrix, (j - j_target))))
-
-        # linear acceleration
-        alpha = (2 * m2 * l * omega ** 2 * np.sin(theta) - 3 * m2 * g * np.sin(theta) * np.cos(
-            theta) + 4 * action - 4 * b * v) / (4 * (m1 + m2) - 3 * m2 * np.cos(theta) ** 2)
-
-        # angular acceleration
-        beta = (3 * m2 * l * omega ** 2 * np.sin(theta) * np.cos(theta) - 6 * (m1 + m2) * g * np.sin(theta) + 6 * (
-                action - b * v) * np.cos(
-            theta)) / (4 * l * (m1 + m2) - 3 * m2 * l * np.cos(theta) ** 2)
-
-        # Euler method
-        v = v + delta_t * alpha
-        if v > v_max or v < v_min:
-            v = np.clip(v, v_min, v_max)
-
-        x = x + delta_t * v + 1 / 2 * delta_t ** 2 * alpha
-        if x > x_max or x < x_min:
-            x = np.clip(x, x_min, x_max)
-
-        omega = omega + delta_t * beta
-        if omega > omega_max or omega < omega_min:
-            omega = np.clip(omega, omega_min, omega_max)
-
-        theta = theta + delta_t * omega + 1 / 2 * delta_t ** 2 * beta
-        if theta > theta_max or theta < theta_min:
-            theta = np.clip(theta, theta_min, theta_max)
-
-        # give the next state and reward
-        next_state = x, v, theta, omega
-        self.state = next_state
+        reward = self.get_reward(self.state)
+        self.state_list.append(self.state)
         self.rewards.append(reward)
+        self.state_reward_dict[self.state] = reward
+
+        remaining_time = self._action_interval
+        delta_t = self._update_interval
+
+        while remaining_time > 0:
+            if delta_t < remaining_time:
+                delta_t = remaining_time
+
+            # linear acceleration
+            alpha = (2 * m2 * l * omega ** 2 * np.sin(theta) - 3 * m2 * g * np.sin(theta) * np.cos(
+                theta) + 4 * action - 4 * b * v) / (4 * (m1 + m2) - 3 * m2 * np.cos(theta) ** 2)
+
+            # angular acceleration
+            beta = (3 * m2 * l * omega ** 2 * np.sin(theta) * np.cos(theta) - 6 * (m1 + m2) * g * np.sin(theta) + 6 * (
+                    action - b * v) * np.cos(
+                theta)) / (4 * l * (m1 + m2) - 3 * m2 * l * np.cos(theta) ** 2)
+
+            # Euler method
+            # velocity
+            v = v + delta_t * alpha
+            if v > v_max or v < v_min:
+                v = np.clip(v, v_min, v_max)
+
+            # displacement
+            x = x + delta_t * v + 1 / 2 * delta_t ** 2 * alpha
+            if x > x_max or x < x_min:
+                x = np.clip(x, x_min, x_max)
+
+            # angular velocity
+            omega = omega + delta_t * beta
+            if omega > omega_max or omega < omega_min:
+                omega = np.clip(omega, omega_min, omega_max)
+
+            # angular displacement
+            theta = theta + delta_t * omega + 1 / 2 * delta_t ** 2 * beta
+            theta = theta % (2 * pi)
+            if theta > pi:
+                theta -= 2 * pi
+
+            remaining_time -= delta_t
+
+        # give the next state
+        next_state = (x, v, theta, omega)
+        self.state = next_state
 
         return next_state, reward
 
     def render(self):
-        ...
+        if self.use_renderer:
+            self.renderer = Renderer(length=self.pole_length)
+        self.renderer.animate(state_list=self.state_list, reward_list=self.rewards)
 
 
 def run_test():
     """
     Use this function to test if the environment setup is functioning
-    :param environment:
-    :return:
+    :return: None
     """
     environment = CartPoleEnvironment(cart_mass=0.5, pole_mass=0.5, pole_length=0.6, friction=0.1,
                                       action_range=(-10, 10),
                                       action_interval=0.1, update_interval=0.01)
 
+    actions = np.random.randint(-2, 2, 200)
     environment.reset()
-    environment.step(5)
+
+    for action in actions:
+        environment.step(action)
+
+    environment.render()
 
 
 if __name__ == '__main__':
+    np.random.seed(0)
     run_test()
