@@ -90,10 +90,10 @@ class CartPoleEnvironment:
 
         x, v, theta, omega = self.state
 
-        v_min, v_max = (-10, 10)
-        x_min, x_max = (-6, 6)
-        omega_min, omega_max = (-10, 10)
-        theta_min, theta_max = (-pi, pi)
+        v_min, v_max = self._velocityLimit
+        x_min, x_max = self._displacementLimit
+        omega_min, omega_max = self._angularVelocityLimit
+        theta_min, theta_max = self._angleLimit
 
         m1 = self.cart_mass
         m2 = self.pole_mass
@@ -142,8 +142,8 @@ class CartPoleEnvironment:
             # angular displacement
             theta = theta + delta_t * omega + 1 / 2 * delta_t ** 2 * beta
             theta = theta % (2 * pi)
-            if theta > pi:
-                theta -= 2 * pi
+            if theta > theta_max:
+                theta -= 2 * theta_max
 
             remaining_time -= delta_t
 
@@ -155,7 +155,7 @@ class CartPoleEnvironment:
 
     def render(self):
         if self.use_renderer:
-            self.renderer = Renderer(length=self.pole_length)
+            self.renderer = Renderer(length=self.pole_length, x_range=self._displacementLimit)
         self.renderer.animate(state_list=self.state_list, reward_list=self.rewards)
 
 
