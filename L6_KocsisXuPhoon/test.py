@@ -665,6 +665,18 @@ class GMMApproximator(FunctionApproximator):
                                     - self.gaussian_means[:, :, None] * self.gaussian_means[:, None,
                                                                         :]
 
+        # regularization covariance matrix -> prevent singularity
+        w, _ = np.linalg.eig(self.gaussian_covariances)
+        cov_matrix = self.gaussian_covariances[-1, :, :]
+        min_w = np.amin(w)
+        while min_w < 1e-6:
+            reg_coef = 0.04
+            var = np.trace(cov_matrix) / (self.D)
+            var = max(var, 0.01)
+            self.gaussian_covariances = self.gaussian_covariances + reg_coef * np.square(var) * np.eye(self.D)[None, :]
+            w, _ = np.linalg.eig(self.gaussian_covariances)
+            min_w = np.amin(w)
+
         self.probs_cache = None
         # self.pos_cache = None
 
