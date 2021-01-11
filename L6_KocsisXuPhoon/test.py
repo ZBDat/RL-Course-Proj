@@ -1,6 +1,5 @@
 import random
 import logging
-from itertools import chain
 import time
 from abc import ABC, abstractmethod
 from typing import Tuple, List, Dict, Any
@@ -534,7 +533,7 @@ class VariableResolutionApproximator(FunctionApproximator):
         return best_action, max_mean
 
 class GMMApproximator(FunctionApproximator):
-    def __init__(self, input_dim, error_threshold, density_threshold, a=0.5, b=1):
+    def __init__(self, input_dim, error_threshold, density_threshold, size_dimension, a=0.5, b=1):
         """Initialize the GMM with 1 Gaussian"""
         self.input_dim = input_dim
         self.error_threshold = error_threshold
@@ -543,7 +542,7 @@ class GMMApproximator(FunctionApproximator):
         self.b = b
 
         self.D = self.input_dim + 1
-        self.d = np.array([10, 2])
+        self.d = size_dimension
         self.volume_eps = np.prod(self.d / 10)
         self.num_samples = 0
         self.gaussian_weights = np.array([1])
@@ -637,15 +636,14 @@ class GMMApproximator(FunctionApproximator):
                 self.probs_cache = None
 
     def estimate_max(self, x: List[float]):
-        state = (x[0], x[1])
-        action = x[2]
         # get the maximum value and the corresponding action
-        action_list = np.linspace(-5, 5, 100)
+        action_list = np.linspace(-5, 5, 20)
         q_list = []
         mean_list = []
 
         for action in action_list:
-            mean, variance = self.query([state[0], state[1], action])
+            mean, variance= self.query([x[0], x[1], action])
+            # the probability distribution for q, p(q|s,a)
             q_rand = np.random.normal(mean, np.sqrt(variance))
             q_list.append(q_rand)
             mean_list.append(mean)
@@ -664,7 +662,7 @@ class GMMApproximator(FunctionApproximator):
         self.gaussian_covariances = self.sum_second_order / self.sum_zero_order[:, None, None] \
                                     - self.gaussian_means[:, :, None] * self.gaussian_means[:, None,
                                                                         :]
-
+        
         # regularization covariance matrix -> prevent singularity
         w, _ = np.linalg.eig(self.gaussian_covariances)
         cov_matrix = self.gaussian_covariances[-1, :, :]
@@ -676,7 +674,7 @@ class GMMApproximator(FunctionApproximator):
             self.gaussian_covariances = self.gaussian_covariances + reg_coef * np.square(var) * np.eye(self.D)[None, :]
             w, _ = np.linalg.eig(self.gaussian_covariances)
             min_w = np.amin(w)
-
+        
         self.probs_cache = None
         # self.pos_cache = None
 
@@ -727,7 +725,7 @@ class GMMApproximator(FunctionApproximator):
         """
         New Gaussian initialization
         """
-        w_new = 0.9
+        w_new = 0.95
         zero_order_value = 1
 
         sum_zero_density = np.sum(self.sum_zero_order * self.probs_cache)
@@ -894,30 +892,28 @@ def variable_resolution_q_learning():
         action = best_next_action
     """
 
-    plt.plot(accumulated_reward)
+    return accumulated_reward
 
 def gmm_q_learning():
     env = InvertedPendulumEnvironment()
 
     # initialize 
-    Q_value_estimate = GMMApproximator(input_dim=3, error_threshold=1e-3, density_threshold=0.1, a=0.9, b=1)
+    Q_value_estimate = GMMApproximator(input_dim=3, error_threshold=1e-3, density_threshold=0.1, size_dimension=np.array([20, 20, 10, 50]), a=0.001, b=5)
 
     state = (pi, 0)
-    action = random.choice(np.linspace(-5, 5, 100))
+    action = random.choice(np.linspace(-5, 5, 20))
 
     # loop
     num_episodes = 100
     num_iterations = 500
 
     eps0 = 1.25
-    gamma = 0.96
+    gamma = 0.99
 
     accumulated_reward = []
 
     for e in range(num_episodes):
 
-        if e % 10 == 0:
-            print("episode", e)
         # Training phase
         # observe current state s
         env.reset()
@@ -938,15 +934,18 @@ def gmm_q_learning():
             state = next_state
 
             # select an action according to the greedy policy
-            action = best_action if random.random() > 1/(eps0 + 0.001 * i) else random.choice(np.linspace(-5, 5, 100))
+            action = best_action if random.random() > 1/(eps0 + 0.001 * i) else random.choice(np.linspace(-5, 5, 20))
 
-            #if e % 10 == 0 & i % 200 == 0:
-            #    print(Q_value_estimate.query(((0, 0), 0)))
+            # if e % 10 == 0 & i % 200 == 0:
+            #    print(Q_value_estimate.query([0, 0, 0]))
 
         # Testing phase
         env.reset()
-        test_action = random.choice(np.linspace(-5, 5, 100))
+        test_action = random.choice(np.linspace(-5, 5, 20))
         reward = 0
+
+        if e % 10 == 0:
+            print(f"\r Test Episode: {e}, Number of Gaussians: {Q_value_estimate.number_of_gaussians}")
 
         for i in range(num_iterations):
 
@@ -959,7 +958,7 @@ def gmm_q_learning():
             best_test_next_action = 0
 
             # select the best action based on the learned results
-            action_list = np.linspace(-5, 5, 100)
+            action_list = np.linspace(-5, 5, 20)
             for test_next_action in action_list:
                 mean, _ = Q_value_estimate.query([test_next_state[0], test_next_state[1], test_next_action])
 
@@ -974,7 +973,7 @@ def gmm_q_learning():
 
         accumulated_reward.append(reward)
     
-    plt.plot(accumulated_reward)
+    return accumulated_reward
 
 def exercise_1():
     """
@@ -997,7 +996,7 @@ def exercise_1():
                           (input_values_forth, output_values_forth)]
 
     # Initialize the approximator
-    approximator = GMMApproximator(input_dim=1, error_threshold=1e-3, density_threshold=0.1, a=0.9, b=1)
+    approximator = GMMApproximator(input_dim=1, error_threshold=1e-3, density_threshold=0.1, size_dimension=np.array([10, 2]), a=0.9, b=1)
 
     # Training loop
     epoch_count = 0
@@ -1061,6 +1060,19 @@ def exercise_1():
     plt.ioff()
     plt.show()
 
+def exercise_2():
+    reward1 = variable_resolution_q_learning()
+    reward2 = gmm_q_learning()
+
+    plt.figure("Inverted Pendulum Q-Learning with FA")
+    plt.title = "Function approximation Q-Learning - Rewards Evolution"
+    plt.xlabel("Number of Test Episodes")
+    plt.ylabel("Accumulated Rewards")
+    plt.plot(reward1, 'b-', label='Variable Resolution')
+    plt.plot(reward2, 'r-', label='GMM')
+    plt.legend(loc='best')
+    plt.show()
+
 def set_seed(seed):
     random.seed(seed)
     np.random.seed(seed)
@@ -1070,5 +1082,5 @@ if __name__ == "__main__":
     # init_logger()
 
     # variable_resolution_q_learning()
-    # exercise_1()
-    gmm_q_learning()
+    exercise_1()
+    exercise_2()
