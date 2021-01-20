@@ -564,7 +564,7 @@ class GMMApproximator(FunctionApproximator):
     def number_of_gaussians(self):
         return len(self.gaussian_weights)
 
-    def query(self, x: List[float]) -> Tuple[float, float]:
+    def query(self, x: List[float]) -> Tuple[np.ndarray, np.ndarray]:
         x = np.array(x)
         gaussian_means_x = self.gaussian_means[:, :-1]
         gaussian_covariances_xx = self.gaussian_covariances[:, :-1, :-1]
@@ -634,10 +634,11 @@ class GMMApproximator(FunctionApproximator):
         if approx_error >= self.error_threshold:
             self.probs_cache = self._get_probs(position_vector)
             density = np.sum(self.gaussian_weights * self.probs_cache)
-            if density <= self.density_threshold:
+
+            """if density <= self.density_threshold:
                 self.generate_gaussian(position_vector)
             else:
-                self.probs_cache = None
+                self.probs_cache = None"""
 
     def estimate_max(self, x: List[float]):
         # get the maximum value and the corresponding action
@@ -1128,4 +1129,4 @@ if __name__ == "__main__":
 
     # variable_resolution_q_learning()
     exercise_1()
-    exercise_2()
+    # exercise_2()
