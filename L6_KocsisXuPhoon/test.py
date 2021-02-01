@@ -803,7 +803,7 @@ def variable_resolution_q_learning():
 
     for e in range(num_episodes):
 
-        if e % 10 == 0:
+        if e % 1 == 0:
             print("episode", e)
         # Training phase
         # observe current state s
@@ -902,11 +902,7 @@ def gmm_q_learning():
     env = InvertedPendulumEnvironment()
 
     # initialize 
-<<<<<<< HEAD
-    Q_value_estimate = GMMApproximator(input_dim=3, error_threshold=0.1, density_threshold=0.0667, size_dimension=np.array([8, 8, 10, 20]), a=0.001, b=5)
-=======
     Q_value_estimate = GMMApproximator(input_dim=3, error_threshold=100.0, density_threshold=1e-5, size_dimension=np.array([20, 20, 10, 50]), a=0.9, b=1)
->>>>>>> ac84c7bab7285b20f577a1554a45e10b6f926eeb
 
     state = (pi, 0)
     action = random.choice(np.linspace(-5, 5, 20))
@@ -1111,13 +1107,9 @@ def exercise_1():
 
 
 def exercise_2():
-<<<<<<< HEAD
-    # reward1 = variable_resolution_q_learning()
-=======
     set_seed(0)
     reward1 = variable_resolution_q_learning()
     set_seed(0)
->>>>>>> ac84c7bab7285b20f577a1554a45e10b6f926eeb
     reward2 = gmm_q_learning()
 
     plt.figure("Inverted Pendulum Q-Learning with FA")
@@ -1128,8 +1120,6 @@ def exercise_2():
     plt.plot(reward2, 'r-', label='GMM')
     plt.legend(loc='best')
     plt.show()
-
-
 
 
 if __name__ == "__main__":
