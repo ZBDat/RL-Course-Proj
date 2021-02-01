@@ -898,7 +898,7 @@ def gmm_q_learning():
     env = InvertedPendulumEnvironment()
 
     # initialize 
-    Q_value_estimate = GMMApproximator(input_dim=3, error_threshold=1e-3, density_threshold=0.1, size_dimension=np.array([20, 20, 10, 50]), a=0.001, b=5)
+    Q_value_estimate = GMMApproximator(input_dim=3, error_threshold=0.1, density_threshold=0.0667, size_dimension=np.array([8, 8, 10, 20]), a=0.001, b=5)
 
     state = (pi, 0)
     action = random.choice(np.linspace(-5, 5, 20))
@@ -908,7 +908,7 @@ def gmm_q_learning():
     num_iterations = 500
 
     eps0 = 1.25
-    gamma = 0.99
+    gamma = 0.85
 
     accumulated_reward = []
 
@@ -970,6 +970,8 @@ def gmm_q_learning():
                     pass
 
             test_action = best_test_next_action
+        
+        print(f"\r Reward: {reward}")
 
         accumulated_reward.append(reward)
     
@@ -1061,14 +1063,14 @@ def exercise_1():
     plt.show()
 
 def exercise_2():
-    reward1 = variable_resolution_q_learning()
+    # reward1 = variable_resolution_q_learning()
     reward2 = gmm_q_learning()
 
     plt.figure("Inverted Pendulum Q-Learning with FA")
     plt.title = "Function approximation Q-Learning - Rewards Evolution"
     plt.xlabel("Number of Test Episodes")
     plt.ylabel("Accumulated Rewards")
-    plt.plot(reward1, 'b-', label='Variable Resolution')
+    # plt.plot(reward1, 'b-', label='Variable Resolution')
     plt.plot(reward2, 'r-', label='GMM')
     plt.legend(loc='best')
     plt.show()
@@ -1082,5 +1084,5 @@ if __name__ == "__main__":
     # init_logger()
 
     # variable_resolution_q_learning()
-    exercise_1()
+    # exercise_1()
     exercise_2()
