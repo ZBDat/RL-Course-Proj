@@ -16,6 +16,10 @@ matplotlib.use('TkAgg')
 
 logger = logging.getLogger('RLFR')
 
+def set_seed(seed):
+    random.seed(seed)
+    np.random.seed(seed)
+
 def init_logger():
     logger.setLevel(logging.DEBUG)
 
@@ -898,7 +902,11 @@ def gmm_q_learning():
     env = InvertedPendulumEnvironment()
 
     # initialize 
+<<<<<<< HEAD
     Q_value_estimate = GMMApproximator(input_dim=3, error_threshold=0.1, density_threshold=0.0667, size_dimension=np.array([8, 8, 10, 20]), a=0.001, b=5)
+=======
+    Q_value_estimate = GMMApproximator(input_dim=3, error_threshold=100.0, density_threshold=1e-5, size_dimension=np.array([20, 20, 10, 50]), a=0.9, b=1)
+>>>>>>> ac84c7bab7285b20f577a1554a45e10b6f926eeb
 
     state = (pi, 0)
     action = random.choice(np.linspace(-5, 5, 20))
@@ -913,6 +921,9 @@ def gmm_q_learning():
     accumulated_reward = []
 
     for e in range(num_episodes):
+
+        if e % 1 == 0:
+            print("episode", e)
 
         # Training phase
         # observe current state s
@@ -944,9 +955,6 @@ def gmm_q_learning():
         test_action = random.choice(np.linspace(-5, 5, 20))
         reward = 0
 
-        if e % 10 == 0:
-            print(f"\r Test Episode: {e}, Number of Gaussians: {Q_value_estimate.number_of_gaussians}")
-
         for i in range(num_iterations):
 
             # execute the action
@@ -973,9 +981,48 @@ def gmm_q_learning():
         
         print(f"\r Reward: {reward}")
 
+        if e % 1 == 0:
+            print(f"\r Test Episode: {e}, Number of Gaussians: {Q_value_estimate.number_of_gaussians}, reward: {reward}")
+
         accumulated_reward.append(reward)
+
+    """
+    # Animation
+    env.reset()
+    test_action = random.choice(np.linspace(-5, 5, 20))
+    reward = 0
+    for n in range(100):
+        # execute the action
+        test_next_state, test_reward = env.step(test_action)
+
+        # Render the simulation if needed
+        env.render()
+
+        # Plot the rewards if needed
+        env.plot_reward()
+
+        reward += test_reward
+
+        max_mean = -np.inf
+        best_test_next_action = 0
+
+        # select the best action based on the learned results
+        action_list = np.linspace(-5, 5, 20)
+        for test_next_action in action_list:
+            mean, _ = Q_value_estimate.query([test_next_state[0], test_next_state[1], test_next_action])
+
+            if mean > max_mean:
+                best_test_next_action = test_next_action
+                max_mean = mean
+
+            else:
+                pass
+
+        test_action = best_test_next_action
+    """
     
     return accumulated_reward
+
 
 def exercise_1():
     """
@@ -1062,8 +1109,15 @@ def exercise_1():
     plt.ioff()
     plt.show()
 
+
 def exercise_2():
+<<<<<<< HEAD
     # reward1 = variable_resolution_q_learning()
+=======
+    set_seed(0)
+    reward1 = variable_resolution_q_learning()
+    set_seed(0)
+>>>>>>> ac84c7bab7285b20f577a1554a45e10b6f926eeb
     reward2 = gmm_q_learning()
 
     plt.figure("Inverted Pendulum Q-Learning with FA")
@@ -1075,9 +1129,8 @@ def exercise_2():
     plt.legend(loc='best')
     plt.show()
 
-def set_seed(seed):
-    random.seed(seed)
-    np.random.seed(seed)
+
+
 
 if __name__ == "__main__":
     set_seed(0)
