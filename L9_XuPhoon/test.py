@@ -5,14 +5,17 @@
 # that may vary from the original implementation of this project
 
 from abc import ABC
+from typing import List
 
-import matplotlib
-import matplotlib.pyplot as plt
+from matplotlib import pyplot as plt
+from matplotlib import animation
 
 import numpy as np
-import theano.tensor as T
-from ilqr import iLQR
-from ilqr.dynamics import BatchAutoDiffDynamics, tensor_constrain
+from theano import tensor as T
+
+from L9_XuPhoon.ilqr.ilqr import iLQR
+from L9_XuPhoon.ilqr.ilqr.cost import QRCost
+from L9_XuPhoon.ilqr.ilqr.dynamics import BatchAutoDiffDynamics, tensor_constrain, constrain
 
 
 class InvertedPendulumDynamics(BatchAutoDiffDynamics, ABC):
@@ -54,8 +57,8 @@ class InvertedPendulumDynamics(BatchAutoDiffDynamics, ABC):
             theta = T.arctan2(sin_theta, cos_theta)
 
             # Define acceleration.
-            theta_dot_dot = -3.0 * g / (2 * l) * T.sin(theta + np.pi)
-            theta_dot_dot += 3.0 / (m * l**2) * torque
+            theta_dot_dot = - mu / (m * l ** 2) * theta_dot + g / l * T.sin(theta + np.pi)
+            theta_dot_dot += 1 / (m * l ** 2) * torque
 
             next_theta = theta + theta_dot * dt
 
@@ -77,7 +80,7 @@ class InvertedPendulumDynamics(BatchAutoDiffDynamics, ABC):
         In this case, it converts:
             [theta, theta'] -> [sin(theta), cos(theta), theta']
         Args:
-            state: State vector [reducted_state_size].
+            state: State vector [reduced_state_size].
         Returns:
             Augmented state size [state_size].
         """
@@ -111,3 +114,146 @@ class InvertedPendulumDynamics(BatchAutoDiffDynamics, ABC):
         return np.hstack([theta, theta_dot])
 
 
+class Renderer:
+
+    def __init__(self, length=1.0, radius=0.1, x_range=(-2, 2), y_range=(-2, 2)):
+        self.length = length
+        self.radius = radius
+
+        self.fig = plt.figure()
+        self.fig.set_dpi(100)
+
+        self.simulation_ax = self.fig.add_subplot(111, xlim=x_range, ylim=y_range)
+        self.simulation_ax.set_title('Cart-Pole Simulation')
+
+        self.simulation_ax.grid()
+
+        self.patch1 = plt.Circle((0, 0), 0.1, fc='black', ec='black')
+        self.patch2 = plt.Line2D((0, self.length), (0, 0), lw=1.5)
+
+    def initialize_plot(self):
+        """
+        The starting frame of the animation, required by the FuncAnimation method
+        :return:
+        """
+        self.patch1.center = (0, -0.6)
+        self.patch2.set_data(np.array([0, 0]), np.array([0, 0.6]))
+
+        self.simulation_ax.add_artist(self.patch1)
+        self.simulation_ax.add_artist(self.patch2)
+
+        return self.patch1, self.patch2,
+
+    def plot_shapes(self, state: float):
+        """
+        Repeated frames of the animation, required by the FuncAnimation method
+        :param state: state of the pendulum
+        :return: any plotted objects
+        """
+        x1, y1 = (0.0, 0.0)
+        x2, y2 = self.patch1.center
+        theta = state
+        y1 = 0
+        x2 = x1 + self.length * np.sin(theta)
+        y2 = y1 + self.length * np.cos(theta)
+        self.patch1.center = (x2, y2)
+        self.patch2.set_data(np.array([x1, x2]), np.array([y1, y2]))
+
+        return self.patch1, self.patch2,
+
+    def animate(self, state_list: List):
+        """
+        Animation. the list of state and reward should have the same length
+        :param state_list: list recording the states
+        :return: a FuncAnimation object
+        """
+
+        # Tweaking option: set interval higher: slow down the animation
+        ani1 = animation.FuncAnimation(self.fig, self.plot_shapes, frames=state_list,
+                                       interval=20, blit=True, init_func=self.initialize_plot)
+
+        plt.show()
+
+        return ani1,
+
+
+def on_iteration(iteration_count, xs, us, J_opt, accepted, converged):
+    """
+    Print the information during each iteration
+    :param iteration_count: number of iteration
+    :param xs: state
+    :param us: input
+    :param J_opt: optimal cost function
+    :param accepted: if the solution is valid
+    :param converged: if the process already converged
+    :return: None
+    """
+    J_hist.append(J_opt)
+    info = "converged" if converged else ("accepted" if accepted else "failed")
+    final_state = dynamics.reduce_state(xs[-1])
+    print("iteration", iteration_count, info, J_opt, final_state)
+
+
+if __name__ == "__main__":
+
+    dt = 0.01
+    pendulum_length = 1.0
+    dynamics = InvertedPendulumDynamics(dt, l=pendulum_length)
+    renderer = Renderer(length=pendulum_length)
+
+    # use augmented state
+    x_goal = dynamics.augment_state(np.array([0.0, 0.0]))
+
+    # set Q matrix. entries are penalizing factors. The Q and R matrices can be customized
+    Q = np.eye(dynamics.state_size)
+    Q[0, 1] = Q[1, 0] = pendulum_length
+    Q[0, 0] = Q[1, 1] = 2 * pendulum_length ** 2
+    Q[2, 2] = 0.0
+    Q_terminal = 100 * np.eye(dynamics.state_size)
+
+    # penalty for the input
+    R = np.array([[0.2]])
+
+    # The cost function J
+    cost = QRCost(Q, R, Q_terminal=Q_terminal, x_goal=x_goal)
+
+    N = 500  # horizon
+    x0 = dynamics.augment_state(np.array([np.pi, 0.0]))  # initial state
+    us_init = np.random.uniform(-1.0, 1.0, (N, dynamics.action_size))  # initial input, here input is scaled
+    ilqr = iLQR(dynamics, cost, N)
+
+    J_hist = []
+    xs, us = ilqr.fit(x0, us_init, n_iterations=200, on_iteration=on_iteration)
+
+    # Reduce the state to something more reasonable.
+    xs = dynamics.reduce_state(xs)
+
+    # Constrain the actions to see what's actually applied to the system.
+    us = constrain(us, dynamics.min_bounds, dynamics.max_bounds)
+
+    t = np.arange(N) * dt
+    theta = np.unwrap(xs[:, 0])  # Makes for smoother plots.
+    theta_dot = xs[:, 1]
+
+    ani = renderer.animate(state_list=theta.tolist())
+
+    # plot the results
+    fig1 = plt.figure()
+    _ = plt.plot(theta, theta_dot)
+    _ = plt.xlabel("theta (rad)")
+    _ = plt.ylabel("theta_dot (rad/s)")
+    _ = plt.title("Phase Plot")
+
+    fig2 = plt.figure()
+    _ = plt.plot(t, us)
+    _ = plt.xlabel("time (s)")
+    _ = plt.ylabel("Force (N)")
+    _ = plt.title("Action path")
+
+    fig3 = plt.figure()
+    _ = plt.plot(J_hist)
+    _ = plt.xlabel("Iteration")
+    _ = plt.ylabel("Total cost")
+    _ = plt.title("Total cost-to-go")
+
+    plt.show()
