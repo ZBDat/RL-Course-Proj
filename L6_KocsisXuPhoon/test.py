@@ -803,7 +803,7 @@ def variable_resolution_q_learning():
 
     for e in range(num_episodes):
 
-        if e % 10 == 0:
+        if e % 1 == 0:
             print("episode", e)
         # Training phase
         # observe current state s
@@ -912,7 +912,7 @@ def gmm_q_learning():
     num_iterations = 500
 
     eps0 = 1.25
-    gamma = 0.99
+    gamma = 0.85
 
     accumulated_reward = []
 
@@ -974,6 +974,8 @@ def gmm_q_learning():
                     pass
 
             test_action = best_test_next_action
+        
+        print(f"\r Reward: {reward}")
 
         if e % 1 == 0:
             print(f"\r Test Episode: {e}, Number of Gaussians: {Q_value_estimate.number_of_gaussians}, reward: {reward}")
@@ -1114,12 +1116,10 @@ def exercise_2():
     plt.title = "Function approximation Q-Learning - Rewards Evolution"
     plt.xlabel("Number of Test Episodes")
     plt.ylabel("Accumulated Rewards")
-    plt.plot(reward1, 'b-', label='Variable Resolution')
+    # plt.plot(reward1, 'b-', label='Variable Resolution')
     plt.plot(reward2, 'r-', label='GMM')
     plt.legend(loc='best')
     plt.show()
-
-
 
 
 if __name__ == "__main__":
@@ -1127,5 +1127,5 @@ if __name__ == "__main__":
     # init_logger()
 
     # variable_resolution_q_learning()
-    exercise_1()
+    # exercise_1()
     exercise_2()
