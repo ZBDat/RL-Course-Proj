@@ -13,9 +13,9 @@ from matplotlib import animation
 import numpy as np
 from theano import tensor as T
 
-from L9_XuPhoon.ilqr.ilqr import iLQR
-from L9_XuPhoon.ilqr.ilqr.cost import QRCost
-from L9_XuPhoon.ilqr.ilqr.dynamics import BatchAutoDiffDynamics, tensor_constrain, constrain
+from ilqr import iLQR
+from ilqr.cost import QRCost
+from ilqr.dynamics import BatchAutoDiffDynamics, tensor_constrain, constrain
 
 
 class InvertedPendulumDynamics(BatchAutoDiffDynamics, ABC):
@@ -258,3 +258,5 @@ if __name__ == "__main__":
     _ = plt.title("Total cost-to-go")
 
     plt.show()
+    
+    input("press any key")
