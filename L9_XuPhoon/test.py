@@ -169,12 +169,10 @@ class Renderer:
         """
 
         # Tweaking option: set interval higher: slow down the animation
-        ani1 = animation.FuncAnimation(self.fig, self.plot_shapes, frames=state_list,
-                                       interval=20, blit=True, init_func=self.initialize_plot)
+        ani = animation.FuncAnimation(self.fig, self.plot_shapes, frames=state_list,
+                                      interval=20, blit=True, init_func=self.initialize_plot)
 
-        plt.show()
-
-        return ani1,
+        return ani
 
 
 def on_iteration(iteration_count, xs, us, J_opt, accepted, converged):
@@ -236,6 +234,9 @@ if __name__ == "__main__":
     theta_dot = xs[:, 1]
 
     ani = renderer.animate(state_list=theta.tolist())
+    # Writer = animation.writers['ffmpeg']
+    # writer = Writer(fps=60, codec="h264", bitrate=-1, metadata=dict(dpi=300))
+    # ani.save('pendulum.mp4')
 
     # plot the results
     fig1 = plt.figure()
