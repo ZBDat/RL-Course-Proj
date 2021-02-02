@@ -549,13 +549,14 @@ class GMMApproximator(FunctionApproximator):
         self.d = size_dimension
         self.volume_eps = np.prod(self.d / 10)
         self.num_samples = 0
-        self.gaussian_weights = np.array([1])
-        self.gaussian_means = np.zeros(self.D)[None, :]
-        self.gaussian_covariances = np.eye(self.D)[None, :]
+        self.gaussian_weights = np.array([0.5, 0.5])
+        self.gaussian_means = np.zeros((2, self.D))
+        self.gaussian_covariances = np.eye(self.D)
+        self.gaussian_covariances = np.array([self.gaussian_covariances, self.gaussian_covariances])
 
-        self.sum_zero_order = np.array([1])  # [1]_t
-        self.sum_first_order = np.zeros(self.D)[None, :]  # [z]_t
-        self.sum_second_order = np.zeros((self.D, self.D))[None, :]  # [z*z.T]_t
+        self.sum_zero_order = np.array([1, 1])  # [1]_t
+        self.sum_first_order = np.zeros((2, self.D))  # [z]_t
+        self.sum_second_order = np.zeros((2, self.D, self.D)) # [z*z.T]_t
 
         self.probs_cache = None
         # self.pos_cache = None
@@ -564,7 +565,7 @@ class GMMApproximator(FunctionApproximator):
     def number_of_gaussians(self):
         return len(self.gaussian_weights)
 
-    def query(self, x: List[float]) -> Tuple[float, float]:
+    def query(self, x: List[float]) -> Tuple[np.ndarray, np.ndarray]:
         x = np.array(x)
         gaussian_means_x = self.gaussian_means[:, :-1]
         gaussian_covariances_xx = self.gaussian_covariances[:, :-1, :-1]
@@ -631,13 +632,14 @@ class GMMApproximator(FunctionApproximator):
         mu, std = self.query(x)
         approx_error = (y - mu) ** 2
 
-        if approx_error >= self.error_threshold:
+        """if approx_error >= self.error_threshold:
             self.probs_cache = self._get_probs(position_vector)
             density = np.sum(self.gaussian_weights * self.probs_cache)
+
             if density <= self.density_threshold:
                 self.generate_gaussian(position_vector)
             else:
-                self.probs_cache = None
+                self.probs_cache = None"""
 
     def estimate_max(self, x: List[float]):
         # get the maximum value and the corresponding action
