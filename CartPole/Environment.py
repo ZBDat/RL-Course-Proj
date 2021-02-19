@@ -62,6 +62,15 @@ class CartPoleEnvironment:
 
         return self.state
 
+    def clear(self):
+        """
+        clear the stored state list
+        :return:
+        """
+        self.rewards = []
+        self.state_list = []
+        self.state_reward_dict = {}
+
     def get_reward(self, state: Tuple[float, float, float, float]):
         """
         Calculate the reward corresponding to a state
