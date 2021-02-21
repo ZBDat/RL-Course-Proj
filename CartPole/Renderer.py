@@ -50,7 +50,7 @@ class Renderer:
 
         return self.patch1, self.patch2, self.patch3, self.text,
 
-    def plot_shapes(self, state: Tuple[float, float, float, float]):
+    def plot_shapes(self, state):
         """
         Repeated frames of the animation, required by the FuncAnimation method
         :param state: state of the cart-pole
@@ -82,14 +82,17 @@ class Renderer:
         :return: a FuncAnimation object
         """
 
-        self.reward_ax.set_xlim(0, len(reward_list))
-
         # Tweaking option: set interval higher: slow down the animation
         ani1 = animation.FuncAnimation(self.fig, self.plot_shapes, frames=state_list,
-                                       interval=100, blit=True, init_func=self.initialize_plot)
-
-        ani2 = animation.FuncAnimation(self.fig, self.plot_rewards, frames=reward_list,
                                        interval=50, blit=True, init_func=self.initialize_plot)
+
+        if reward_list:
+            self.reward_ax.set_xlim(0, len(reward_list))
+            ani2 = animation.FuncAnimation(self.fig, self.plot_rewards, frames=reward_list,
+                                       interval=50, blit=True, init_func=self.initialize_plot)
+
+        else:
+            ani2 = None
 
         plt.show()
 
