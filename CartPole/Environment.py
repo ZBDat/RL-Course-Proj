@@ -86,7 +86,7 @@ class CartPoleEnvironment:
 
         return reward
 
-    def step(self, action) -> Tuple[Tuple[float, float, float, float], float]:
+    def step(self, action) -> Tuple[Tuple[float, float, float, float], float, bool]:
         """
         The function to calculate the state with a given action
         :return: self.state, reward
@@ -114,7 +114,7 @@ class CartPoleEnvironment:
         reward = self.get_reward(self.state)
         self.state_list.append(self.state)
         self.rewards.append(reward)
-        self.state_reward_dict[self.state] = reward
+        #self.state_reward_dict[self.state] = reward
 
         remaining_time = self._action_interval
         delta_t = self._update_interval
@@ -135,18 +135,12 @@ class CartPoleEnvironment:
             # Euler method
             # velocity
             v = v + delta_t * alpha
-            if v > v_max or v < v_min:
-                v = np.clip(v, v_min, v_max)
 
             # displacement
             x = x + delta_t * v + 1 / 2 * delta_t ** 2 * alpha
-            if x > x_max or x < x_min:
-                x = np.clip(x, x_min, x_max)
 
             # angular velocity
             omega = omega + delta_t * beta
-            if omega > omega_max or omega < omega_min:
-                omega = np.clip(omega, omega_min, omega_max)
 
             # angular displacement
             theta = theta + delta_t * omega + 1 / 2 * delta_t ** 2 * beta
@@ -160,7 +154,17 @@ class CartPoleEnvironment:
         next_state = (x, v, theta, omega)
         self.state = next_state
 
-        return next_state, reward
+        # episode termination
+        done = bool(
+            x < x_min
+            or x > x_max
+            or v < v_min
+            or v > v_max
+            or omega < omega_min
+            or omega > omega_max
+        )
+
+        return next_state, reward, done
 
     def render(self):
         if self.use_renderer:
