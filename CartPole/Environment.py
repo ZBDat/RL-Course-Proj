@@ -3,7 +3,7 @@ from typing import Tuple, List, Dict, Any
 import numpy as np
 from numpy import pi
 
-from CartPole.Renderer import Renderer
+from Renderer import Renderer
 
 
 class CartPoleEnvironment:

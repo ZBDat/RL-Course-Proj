@@ -96,7 +96,7 @@ class Renderer:
 
         plt.show()
 
-        return ani1, ani2,
+        return ani1, ani2
 
 
 if __name__ == "__main__":
