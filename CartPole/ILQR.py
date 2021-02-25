@@ -68,27 +68,21 @@ class Dynamics:
     @classmethod
     def augment_state(cls, state):
 
-        if state.ndim == 1:
-            x, x_dot, theta, theta_dot = state
-        else:
-            x = state[..., 0].reshape(-1, 1)
-            x_dot = state[..., 1].reshape(-1, 1)
-            theta = state[..., 2].reshape(-1, 1)
-            theta_dot = state[..., 3].reshape(-1, 1)
+        x = state[..., 0].reshape(-1, 1)
+        x_dot = state[..., 1].reshape(-1, 1)
+        theta = state[..., 2].reshape(-1, 1)
+        theta_dot = state[..., 3].reshape(-1, 1)
 
         return np.hstack([x, x_dot, np.sin(theta), np.cos(theta), theta_dot])
 
     @classmethod
     def reduce_state(cls, state):
 
-        if state.ndim == 1:
-            x, x_dot, sin_theta, cos_theta, theta_dot = state
-        else:
-            x = state[..., 0].reshape(-1, 1)
-            x_dot = state[..., 1].reshape(-1, 1)
-            sin_theta = state[..., 2].reshape(-1, 1)
-            cos_theta = state[..., 3].reshape(-1, 1)
-            theta_dot = state[..., 4].reshape(-1, 1)
+        x = state[..., 0].reshape(-1, 1)
+        x_dot = state[..., 1].reshape(-1, 1)
+        sin_theta = state[..., 2].reshape(-1, 1)
+        cos_theta = state[..., 3].reshape(-1, 1)
+        theta_dot = state[..., 4].reshape(-1, 1)
 
         theta = np.arctan2(sin_theta, cos_theta)
         return np.hstack([x, x_dot, theta, theta_dot])
@@ -122,7 +116,7 @@ class Cost:
         self._R_plus_R_T = self.R + self.R.T
         self._Q_plus_Q_T_terminal = self.Q_terminal + self.Q_terminal.T
 
-    def l(self, x, u, terminal=False):
+    def l(self, x, terminal=False):
 
         Q = self.Q_terminal if terminal else self.Q
         R = self.R
@@ -198,14 +192,14 @@ def backward_pass(dynamics: Dynamics, cost: Cost, x, u):
         f_x[i] = dynamics.f_x(x[i], u[i])
         f_u[i] = dynamics.f_u(x[i], u[i])
 
-        l[i] = cost.l(x[i], u[i], terminal=False)
+        l[i] = cost.l(x[i], terminal=False)
         l_x[i] = cost.l_x(x[i], u[i], terminal=False)
         l_u[i] = cost.l_u(x[i], u[i], terminal=False)
         l_xx[i] = cost.l_xx(x[i], u[i], terminal=False)
         l_ux[i] = cost.l_ux(x[i], u[i], terminal=False)
         l_uu[i] = cost.l_uu(x[i], u[i], terminal=False)
 
-    l[-1] = cost.l(x[-1], u=None, terminal=True)
+    l[-1] = cost.l(x[-1], terminal=True)
     l_x[-1] = cost.l_x(x[-1], None, terminal=True)
     l_xx[-1] = cost.l_xx(x[-1], None, terminal=True)
 

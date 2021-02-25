@@ -44,6 +44,7 @@ class CartPoleEnvironment:
         self.state_list: List[Tuple[float, float, float, float]] or None = []
 
         self.state_reward_dict = {}
+        self.accumulated_reward = []
 
         self.use_renderer = use_renderer
         self.renderer = None
@@ -71,6 +72,13 @@ class CartPoleEnvironment:
         self.state_list = []
         self.state_reward_dict = {}
 
+    def terminate_episode(self):
+        """
+        some operation after each episode is finished
+        :return:
+        """
+        self.accumulated_reward.append(sum(self.rewards))
+
     def get_reward(self, state: Tuple[float, float, float, float]):
         """
         Calculate the reward corresponding to a state
@@ -86,7 +94,7 @@ class CartPoleEnvironment:
 
         return reward
 
-    def step(self, action) -> Tuple[Tuple[float, float, float, float], float]:
+    def step(self, action):
         """
         The function to calculate the state with a given action
         :return: self.state, reward
@@ -160,7 +168,17 @@ class CartPoleEnvironment:
         next_state = (x, v, theta, omega)
         self.state = next_state
 
-        return next_state, reward
+        # episode termination
+        done = bool(
+            x < x_min
+            or x > x_max
+            or v < v_min
+            or v > v_max
+            or omega < omega_min
+            or omega > omega_max
+        )
+
+        return next_state, reward, done
 
     def render(self):
         if self.use_renderer:

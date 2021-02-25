@@ -98,6 +98,10 @@ class Renderer:
 
         return ani1, ani2,
 
+    def plot_accumulated_reward(self, accumulated_reward: List):
+        fig2 = plt.figure()
+        plt.plot(accumulated_reward)
+
 
 if __name__ == "__main__":
     render = Renderer()
