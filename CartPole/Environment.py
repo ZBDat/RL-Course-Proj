@@ -78,8 +78,9 @@ class CartPoleEnvironment:
         :return:
         """
         self.accumulated_reward.append(sum(self.rewards))
+        self.clear()
 
-    def get_reward(self, state: Tuple[float, float, float, float]):
+    def get_reward(self, state: Tuple[float, float, float, float] or List):
         """
         Calculate the reward corresponding to a state
         :param state: state of the environment
@@ -90,7 +91,7 @@ class CartPoleEnvironment:
         j = np.array([x, np.sin(theta), np.cos(theta)])
         j_target = np.array([0, 0, 1])
         quad = lambda A, vec: (np.dot(vec.T, np.dot(A, vec)))  # quadratic form
-        reward = -1 * (1 - np.exp(-0.5 * quad(self.rewardMatrix, (j - j_target))))
+        reward = -1 * (1 - np.exp(-0.5 * (j-j_target).T.dot(self.rewardMatrix).dot(j-j_target)))
 
         return reward
 
@@ -103,7 +104,6 @@ class CartPoleEnvironment:
 
         if action < min(self._action_range) or action > max(self._action_range):
             action = np.clip(action, min(self._action_range), max(self._action_range))
-            print("action out of range, clipped")
 
         x, v, theta, omega = self.state
 
@@ -128,7 +128,7 @@ class CartPoleEnvironment:
         delta_t = self._update_interval
 
         while remaining_time > 0:
-            if delta_t < remaining_time:
+            if delta_t <= remaining_time:
                 delta_t = remaining_time
 
             # linear acceleration
@@ -143,24 +143,16 @@ class CartPoleEnvironment:
             # Euler method
             # velocity
             v = v + delta_t * alpha
-            if v > v_max or v < v_min:
-                v = np.clip(v, v_min, v_max)
 
             # displacement
             x = x + delta_t * v + 1 / 2 * delta_t ** 2 * alpha
-            if x > x_max or x < x_min:
-                x = np.clip(x, x_min, x_max)
 
             # angular velocity
             omega = omega + delta_t * beta
-            if omega > omega_max or omega < omega_min:
-                omega = np.clip(omega, omega_min, omega_max)
 
             # angular displacement
             theta = theta + delta_t * omega + 1 / 2 * delta_t ** 2 * beta
             theta = theta % (2 * pi)
-            if theta > theta_max:
-                theta -= 2 * theta_max
 
             remaining_time -= delta_t
 

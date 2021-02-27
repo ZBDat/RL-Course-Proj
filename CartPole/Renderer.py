@@ -84,7 +84,7 @@ class Renderer:
 
         # Tweaking option: set interval higher: slow down the animation
         ani1 = animation.FuncAnimation(self.fig, self.plot_shapes, frames=state_list,
-                                       interval=50, blit=True, init_func=self.initialize_plot)
+                                       interval=30, blit=True, init_func=self.initialize_plot)
 
         if reward_list:
             self.reward_ax.set_xlim(0, len(reward_list))

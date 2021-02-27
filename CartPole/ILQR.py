@@ -1,23 +1,22 @@
+from matplotlib import pyplot as plt
 import numpy as np
 import theano
 import theano.tensor as T
-from CartPole.Environment import CartPoleEnvironment
 
-env = CartPoleEnvironment(action_interval=0.01)
-env.reset()
-np.random.seed(42)
+from CartPole.Environment import CartPoleEnvironment
+from CartPole.Renderer import Renderer
+
 J_hist = []
 
 
 class Dynamics:
 
-    def __init__(self, dt, min_bounds=-10.0, max_bounds=10.0, mc=0.5, mp=0.5, l=1.0, g=9.80665, b=0.1, **kwargs):
-
+    def __init__(self, dt, u_bounds=(-10.0, 10.0), mc=0.5, mp=0.5, l=1.0, g=9.80665, b=0.1):
         self._x = x = T.dvector("x")
         self._u = u = T.dvector("u")
 
-        self.min_bounds = min_bounds
-        self.max_bounds = max_bounds
+        self.u_min = min(u_bounds)
+        self.u_max = max(u_bounds)
 
         self.state_size = 5
         self.action_size = 1
@@ -29,6 +28,11 @@ class Dynamics:
             :param u: force F
             :return: the ODE of the system dynamics in theano symbolic form
             """
+            # squashing the input with the limits
+            diff = (self.u_max - self.u_min) / 2.0
+            mean = (self.u_min + self.u_max) / 2.0
+            u = diff * T.tanh(u) + mean
+
             x_ = x[..., 0]
             x_dot = x[..., 1]
             sin_theta = x[..., 2]
@@ -37,11 +41,12 @@ class Dynamics:
             F = u[..., 0]
 
             # Dynamical equation, in Deisenroth, M. P. (2010)
-            numerator1 = -3*mp*l*theta_dot**2*cos_theta*sin_theta - 6*(mp+mc)*g*sin_theta - 6*(F-b*x_dot)*cos_theta
-            denominator1 = 4*l*(mp+mc) - 3*mp*l*cos_theta**2
+            numerator1 = -3 * mp * l * theta_dot ** 2 * cos_theta * sin_theta - 6 * (mp + mc) * g * sin_theta - 6 * (
+                    F - b * x_dot) * cos_theta
+            denominator1 = 4 * l * (mp + mc) - 3 * mp * l * cos_theta ** 2
             theta_dot_dot = numerator1 / denominator1  # angular acceleration
 
-            numerator2 = 2*mp*l*theta_dot**2*sin_theta + 3*mp*g*sin_theta*cos_theta + 4*F - 4*b*x_dot
+            numerator2 = 2 * mp * l * theta_dot ** 2 * sin_theta + 3 * mp * g * sin_theta * cos_theta + 4 * F - 4 * b * x_dot
             denominator2 = denominator1 / l
             x_dot_dot = numerator2 / denominator2  # linear acceleration
 
@@ -58,16 +63,19 @@ class Dynamics:
             ]).T
 
         inputs = [x, u]
-        self._dx = f(x, u)
-        self.f = theano.function(inputs, self._dx, name="f", on_unused_input='ignore', **kwargs)
+        self._state = f(x, u)
+        self.f = theano.function(inputs, self._state, name="f", on_unused_input='ignore')
 
         J_x, J_u = theano.gradient.jacobian(expression=f(x, u), wrt=inputs, disconnected_inputs='ignore')
-        self.f_x = theano.function(inputs, J_x, name="f_x", on_unused_input='ignore', **kwargs)
-        self.f_u = theano.function(inputs, J_u, name="f_u", on_unused_input='ignore', **kwargs)
+        self.f_x = theano.function(inputs, J_x, name="f_x", on_unused_input='ignore')
+        self.f_u = theano.function(inputs, J_u, name="f_u", on_unused_input='ignore')
 
-    @classmethod
-    def augment_state(cls, state):
-
+    def augment_state(self, state):
+        """
+        transform a state with theta into aug-state with sin and cos
+        :param state: original state
+        :return: augmented state
+        """
         x = state[..., 0].reshape(-1, 1)
         x_dot = state[..., 1].reshape(-1, 1)
         theta = state[..., 2].reshape(-1, 1)
@@ -75,9 +83,12 @@ class Dynamics:
 
         return np.hstack([x, x_dot, np.sin(theta), np.cos(theta), theta_dot])
 
-    @classmethod
-    def reduce_state(cls, state):
-
+    def reduce_state(self, state):
+        """
+        inverse transformation
+        :param state: augmented state
+        :return: original state
+        """
         x = state[..., 0].reshape(-1, 1)
         x_dot = state[..., 1].reshape(-1, 1)
         sin_theta = state[..., 2].reshape(-1, 1)
@@ -89,254 +100,263 @@ class Dynamics:
 
 
 class Cost:
-    """
-    The cost of ilqr is in quadratic form.
-    """
-    def __init__(self, Q, R, Q_terminal, x_goal=None, u_goal=None):
+
+    def __init__(self, Q, R, Q_terminal, x_target=None):
+        """
+        The cost function of iLQR is in quadratic form.
+        :param Q: penalty matrix for state
+        :param R: penalty matrix for action
+        :param Q_terminal: final state cost
+        :param x_target: final state
+        """
         self.Q = np.array(Q)
         self.R = np.array(R)
 
-        if Q_terminal is None:
-            self.Q_terminal = self.Q
-        else:
-            self.Q_terminal = np.array(Q_terminal)
+        self.Q_terminal = np.array(Q_terminal)
 
-        if x_goal is None:
-            self.x_goal = np.zeros(Q.shape[0])
-        else:
-            self.x_goal = np.array(x_goal)
-
-        if u_goal is None:
-            self.u_goal = np.zeros(R.shape[0])
-        else:
-            self.u_goal = np.array(u_goal)
+        self.x_target = np.array(x_target)
+        self.u_target = np.zeros(R.shape[0])
 
         # derivatives of quadratic forms
-        self._Q_plus_Q_T = self.Q + self.Q.T
-        self._R_plus_R_T = self.R + self.R.T
-        self._Q_plus_Q_T_terminal = self.Q_terminal + self.Q_terminal.T
+        self._QQT = self.Q + self.Q.T
+        self._RRT = self.R + self.R.T
+        self._QQT_Terminal = self.Q_terminal + self.Q_terminal.T
 
-    def l(self, x, terminal=False):
+    def l(self, x, u, terminal=False):
 
         Q = self.Q_terminal if terminal else self.Q
         R = self.R
-        x_diff = x - self.x_goal
+        d_x = x - self.x_target
 
         if terminal:
-            return x_diff.T.dot(Q).dot(x_diff)
+            return d_x.T.dot(Q).dot(d_x)
+        else:
+            d_u = u - self.u_target
+            return d_x.T.dot(Q).dot(d_x) + d_u.T.dot(R).dot(d_u)
 
-        u_diff = u - self.u_goal
-        return x_diff.T.dot(Q).dot(x_diff) + u_diff.T.dot(R).dot(u_diff)
+    def l_x(self, x, terminal=False):
+        QQT = self._QQT_Terminal if terminal else self._QQT
+        d_x = x - self.x_target
 
-    def l_x(self, x, u, terminal=False):
-        Q_plus_Q_T = self._Q_plus_Q_T_terminal if terminal else self._Q_plus_Q_T
-        x_diff = x - self.x_goal
+        return d_x.T.dot(QQT)
 
-        return x_diff.T.dot(Q_plus_Q_T)
-
-    def l_u(self, x, u, terminal=False):
+    def l_u(self, u, terminal=False):
         if terminal:
-            return np.zeros_like(self.u_goal)
+            return np.zeros_like(self.u_target)
 
-        u_diff = u - self.u_goal
-        return u_diff.T.dot(self._R_plus_R_T)
+        d_u = u - self.u_target
+        return d_u.T.dot(self._RRT)
 
-    def l_xx(self, x, u, terminal=False):
-        return self._Q_plus_Q_T_terminal if terminal else self._Q_plus_Q_T
+    def l_xx(self, terminal=False):
+        return self._QQT_Terminal if terminal else self._QQT
 
-    def l_ux(self, x, u, terminal=False):
+    def l_ux(self):
         return np.zeros((self.R.shape[0], self.Q.shape[0]))
 
-    def l_uu(self, x, u, terminal=False):
+    def l_uu(self, terminal=False):
         if terminal:
             return np.zeros_like(self.R)
-        return self._R_plus_R_T
+        return self._RRT
 
 
-def on_iteration(dynamics: Dynamics, iteration_count, xs, J_opt, accepted, converged):
+def iter_info(dynamics: Dynamics, episode, x, optimal_cost, accepted, converged):
     """
-    Print the information during each iteration
+    Print the information during the iteration
     :param dynamics:
-    :param iteration_count: number of iteration
-    :param xs: state
-    :param us: input
-    :param J_opt: optimal cost function
+    :param episode: number of iteration
+    :param x: state
+    :param optimal_cost: optimal cost function
     :param accepted: if the solution is valid
     :param converged: if the process already converged
     :return: None
     """
-    J_hist.append(J_opt)
+    J_hist.append(optimal_cost)
     info = "converged" if converged else ("accepted" if accepted else "failed")
-    final_state = dynamics.reduce_state(xs[-1])
-    print("iteration", iteration_count, info, J_opt, final_state)
+    final_state = dynamics.reduce_state(x[-1])
+    if episode % 10 == 0 or converged:
+        print("episode", episode, info, optimal_cost, final_state)
 
 
-def backward_pass(dynamics: Dynamics, cost: Cost, x, u):
-
-    state_size = dynamics.state_size
-    action_size = dynamics.action_size
-    horizon = u.shape[0]
-
-    l = np.zeros(horizon + 1)
-    l_x = np.zeros((horizon + 1, state_size))
-    l_u = np.zeros((horizon, action_size))
-    l_xx = np.zeros((horizon + 1, state_size, state_size))
-    l_ux = np.zeros((horizon, action_size, state_size))
-    l_uu = np.zeros((horizon, action_size, action_size))
-
-    f_x = np.zeros((horizon, state_size, state_size))
-    f_u = np.zeros((horizon, state_size, action_size))
-
-    for i in range(horizon):
-
-        f_x[i] = dynamics.f_x(x[i], u[i])
-        f_u[i] = dynamics.f_u(x[i], u[i])
-
-        l[i] = cost.l(x[i], terminal=False)
-        l_x[i] = cost.l_x(x[i], u[i], terminal=False)
-        l_u[i] = cost.l_u(x[i], u[i], terminal=False)
-        l_xx[i] = cost.l_xx(x[i], u[i], terminal=False)
-        l_ux[i] = cost.l_ux(x[i], u[i], terminal=False)
-        l_uu[i] = cost.l_uu(x[i], u[i], terminal=False)
-
-    l[-1] = cost.l(x[-1], terminal=True)
-    l_x[-1] = cost.l_x(x[-1], None, terminal=True)
-    l_xx[-1] = cost.l_xx(x[-1], None, terminal=True)
-
-    V_x = l_x[-1]
-    V_xx = l_xx[-1]
-
-    k = np.zeros((horizon, dynamics.action_size))
-    K = np.zeros((horizon, dynamics.action_size, dynamics.state_size))
-
-    for i in range(horizon - 1, -1, -1):
-        # calculate the Q matrices, use regularization
-        Q_x = l_x[i] + f_x[i].T.dot(V_x)
-        Q_u = l_u[i] + f_u[i].T.dot(V_x)
-        Q_xx = l_xx[i] + f_x[i].T.dot(V_xx).dot(f_x[i])
-        Q_xu = l_ux[i] + f_u[i].T.dot(V_xx).dot(f_x[i])
-        Q_uu = l_uu[i] + f_u[i].T.dot(V_xx).dot(f_u[i])
-
-        # solve for K ad k
-        k[i] = -np.linalg.inv(Q_uu).dot(Q_u)
-        K[i] = -np.linalg.inv(Q_uu).dot(Q_xu)
-
-        V_x = Q_x - K[i].T.dot(Q_uu).dot(k[i])
-        V_xx = Q_xx - K[i].T.dot(Q_uu).dot(K[i])
-
-    return np.array(k), np.array(K)
-
-
-def forward_pass(dynamics, cost, x, u, k, K, alpha):
-    x_approx = np.zeros_like(x)
-    u_approx = np.zeros_like(u)
-    x_approx[0] = x[0].copy()
-
-    horizon = np.shape(u)[0]
-
-    for i in range(horizon):
-        # action and state given by k and K. apply action to have next state
-        u_approx[i] = u[i] + alpha * k[i] + K[i].dot(x_approx[i] - x[i])
-        x_approx[i + 1] = dynamics.f(x_approx[i], u_approx[i])
-
-    J = map(lambda args: cost.l(*args), zip(x_approx[:-1], u_approx, range(horizon)))
-    J = sum(J) + cost.l(x[-1], u=None, terminal=True)
-
-    return x_approx, u_approx, J
-
-
-def ilqr(env, cost: Cost, dynamics, num_episodes, num_iterations, horizon, a=0.85, b=1.25, conv_threshold = 1e-6, on_iteration=on_iteration):
+def ilqr(cost: Cost, dynamics: Dynamics, init_state, num_episodes, horizon,
+         conv_threshold=1e-6, mu_min=1e-6, iter_info=iter_info):
     """
-    Th ilqr controller using theano as gradient calculator
-    :param b: learning rate param.
-    :param a: learning rate param.
-    :param env:
-    :param J: cost
+    The ilqr controller using theano as gradient calculator
+    :param iter_info:
+    :param mu_min:
+    :param conv_threshold:
+    :param cost: cost
     :param dynamics:
     :param num_episodes:
-    :param num_iterations:
     :param horizon:
     :return:
     """
-    state_size = dynamics.state_size
+    env = CartPoleEnvironment(action_interval=0.1)
+    env.reset()
     action_size = dynamics.action_size
-    alphas = 1.1**(-np.arange(10)**2)
 
     # initialize
-    u = np.random.uniform(dynamics.min_bounds, dynamics.max_bounds, [horizon, action_size])
-    for i in range(horizon):
-        env.step(u[i][0])
-
-    x = np.array(env.state_list)
-    x = dynamics.augment_state(x)
-
+    u = np.random.uniform(dynamics.u_min, dynamics.u_max, [horizon, action_size])
+    mu = 1.0
+    delta = 2.0  # regularization terms
+    alphas = 1.1 ** (-np.arange(10) ** 2)  # learning rates
     converged = False
 
-    J_opt = 5000
     for e in range(num_episodes):
         accepted = False
 
+        # apply the best control so far to get the trajectory for evaluation
+        state_size = dynamics.state_size
+        action_size = dynamics.action_size
+        horizon = u.shape[0]
+
+        x = np.empty((horizon + 1, state_size))
+        f_x = np.empty((horizon, state_size, state_size))
+        f_u = np.empty((horizon, state_size, action_size))
+
+        l = np.empty(horizon + 1)
+        l_x = np.empty((horizon + 1, state_size))
+        l_u = np.empty((horizon, action_size))
+        l_xx = np.empty((horizon + 1, state_size, state_size))
+        l_xu = np.empty((horizon, action_size, state_size))
+        l_uu = np.empty((horizon, action_size, action_size))
+
+        x[0] = init_state
+        for i in range(horizon):
+
+            _, reward, _ = env.step(u[i][0])
+            x[i + 1] = dynamics.f(x[i], u[i])
+            f_x[i] = dynamics.f_x(x[i], u[i])
+            f_u[i] = dynamics.f_u(x[i], u[i])
+
+            l[i] = cost.l(x[i], u[i], terminal=False)
+            l_x[i] = cost.l_x(x[i], terminal=False)
+            l_u[i] = cost.l_u(u[i], terminal=False)
+            l_xx[i] = cost.l_xx()
+            l_xu[i] = cost.l_ux()
+            l_uu[i] = cost.l_uu()
+
+        l[-1] = cost.l(x[-1], None, terminal=True)
+        l_x[-1] = cost.l_x(x[-1], terminal=True)
+        l_xx[-1] = cost.l_xx(terminal=True)
+        optimal_total_cost = l.sum()
+
         # Backward pass.
-        k, K = backward_pass(dynamics, cost, x, u)
+        V_x = l_x[-1]
+        V_xx = l_xx[-1]
 
-        # Backtracking line search.
+        k = np.empty((horizon, dynamics.action_size))
+        K = np.empty((horizon, dynamics.action_size, dynamics.state_size))
+
+        for i in range(horizon - 1, -1, -1):
+
+            Q_x = l_x[i] + f_x[i].T.dot(V_x)
+            Q_u = l_u[i] + f_u[i].T.dot(V_x)
+            Q_xx = l_xx[i] + f_x[i].T.dot(V_xx).dot(f_x[i])
+
+            # (refer to the paper) regularization methods
+            reg = mu * np.eye(dynamics.state_size)
+            Q_ux = l_xu[i] + f_u[i].T.dot(V_xx + reg).dot(f_x[i])
+            Q_uu = l_uu[i] + f_u[i].T.dot(V_xx + reg).dot(f_u[i])
+
+            k[i] = -np.linalg.inv(Q_uu).dot(Q_u)
+            K[i] = -np.linalg.solve(Q_uu, Q_ux)
+
+            V_x = Q_x + K[i].T.dot(Q_uu).dot(k[i])
+            V_x += K[i].T.dot(Q_u) + Q_ux.T.dot(k[i])
+
+            V_xx = Q_xx + K[i].T.dot(Q_uu).dot(K[i])
+            V_xx += K[i].T.dot(Q_ux) + Q_ux.T.dot(K[i])
+            V_xx = 0.5 * (V_xx + V_xx.T)
+
+        # line search.
         for alpha in alphas:
-            x_approx, u_approx, J = forward_pass(dynamics, cost, x, u, k, K, alpha)
+            # forward pass
+            x_hat = np.zeros_like(x)
+            u_hat = np.zeros_like(u)
+            x_hat[0] = x[0].copy()
 
-            if J < J_opt:
-                if np.abs((J_opt - J) / J_opt) < conv_threshold:
+            total_cost = 0
+            for i in range(horizon):
+                u_hat[i] = u[i] + alpha * k[i] + K[i].dot(x_hat[i] - x[i])
+                x_hat[i + 1] = dynamics.f(x_hat[i], u_hat[i])
+                total_cost += cost.l(x_hat[i], u_hat[i])
+
+            total_cost += cost.l(x_hat[-1], None, terminal=True)
+
+            if total_cost < optimal_total_cost:
+                # convergence judgement from Yuval Tassa 2012
+                if np.abs((optimal_total_cost - total_cost) / optimal_total_cost) < conv_threshold:
                     converged = True
 
-                u = u_approx
+                optimal_total_cost = total_cost
+                u = u_hat
 
-                env.clear()
-                env.reset()
-                for i in range(horizon):
-                    env.step(u[i][0])
-
-                x = np.array(env.state_list)
-                x = dynamics.augment_state(x)
-
-                J_opt = J
+                # regularization
+                delta = min(1.0, delta) / 2.0
+                mu *= delta
+                if mu <= mu_min:
+                    mu = 0.0
 
                 # Accept this.
                 accepted = True
                 break
 
-        if on_iteration:
-            on_iteration(dynamics, e, x, J_opt, accepted, converged)
+        env.terminate_episode()
+
+        if iter_info:
+            iter_info(dynamics, e, x, optimal_total_cost, accepted, converged)
 
         if converged:
             break
 
-    return x, u
+    return x, u, env.accumulated_reward
 
 
 if __name__ == "__main__":
-    env = CartPoleEnvironment(action_interval=0.01)
-    env.reset()
-
     dt = 0.01
     pole_length = 0.6
 
-    np.random.seed(42)
+    np.random.seed(1)
     J_hist = []
 
     dynamics = Dynamics(dt=0.01)
+    env = CartPoleEnvironment(action_interval=0.01)
+    renderer = Renderer()
 
+    # penalty for the state. take the T^-1 matrix from Lec. 10.
     Q = np.eye(dynamics.state_size)
     Q[0, 0] = 1.0
     Q[1, 1] = Q[4, 4] = 0.0
     Q[0, 2] = Q[2, 0] = pole_length
-    Q[2, 2] = Q[3, 3] = pole_length**2
+    Q[2, 2] = Q[3, 3] = pole_length ** 2
+    Q *= 0.5
 
     Q_terminal = 100 * np.eye(dynamics.state_size)
 
     # penalty for the input. Since not included in the reward, set a small value
-    R = np.array([[0.01]])
+    R = np.array([[0.001]])
 
     # The cost function J
-    x_goal = dynamics.augment_state(np.array([0.0, 0.0, 0.0, 0.0]))
-    cost = Cost(Q, R, Q_terminal=Q_terminal, x_goal=x_goal)
+    init_state = dynamics.augment_state(np.array([0.0, 0.0, np.pi, 0.0])).reshape(5)
+    final_state = dynamics.augment_state(np.array([0.0, 0.0, 0.0, 0.0])).reshape(5)
+    cost = Cost(Q, R, Q_terminal=Q_terminal, x_target=final_state)
 
-    x, u = ilqr(env, cost, dynamics, num_episodes=200, num_iterations=150, horizon=10, a=0.85, b=1.25, on_iteration=on_iteration)
+    x, u, accumulated_rewards = ilqr(cost, dynamics, init_state, num_episodes=500, horizon=280, iter_info=iter_info)
+    x = dynamics.reduce_state(x)
+
+    reward_list = []
+    for i in range(x.shape[1]):
+       reward = env.get_reward(tuple(x[i].tolist()))
+       reward_list.append(reward)
+
+    ani = renderer.animate(state_list=x.tolist(), reward_list=reward_list)
+
+    # plot the results
+    inv = [-i for i in J_hist]
+    fig1 = plt.figure()
+    plt.plot(inv)
+    plt.xlabel("Iteration")
+    plt.ylabel("inverse-cost")
+    plt.title("Total inverse cost")
+
+    plt.show()
