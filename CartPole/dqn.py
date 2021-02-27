@@ -16,7 +16,7 @@ import matplotlib.pyplot as plt
 from Environment import CartPoleEnvironment
 
 # hyperparameters
-EPISODES = 1000
+EPISODES = 1500
 EPS_START = 1.0
 EPS_END = 0.01
 gamma = 0.99
@@ -26,7 +26,6 @@ update_target = 100
 log_interval = 10
 replay_memory_capacity = 10000
 TAU = 0.001
-sigma_zero = 0.5
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
 Transition = namedtuple('Transition', ('state', 'next_state', 'action', 'reward', 'mask'))
@@ -141,8 +140,8 @@ def update_target_model(policy_net, target_net):
 def train():
     final = []
     env = CartPoleEnvironment()
-    np.random.seed(450)
-    torch.manual_seed(450)
+    np.random.seed(717)
+    torch.manual_seed(717)
 
     num_inputs = 4
     num_actions = 21
@@ -186,9 +185,6 @@ def train():
             next_state = next_state.unsqueeze(0)
 
             mask = 0 if done else 1
-            reward = reward if not done else -1
-            if action < -10 or action > 10:
-                action = np.clip(action, -10, 10)
             action_idx = np.zeros(21)
             action_idx[action + 10] = 1
             # store transitions in replay memory
@@ -224,7 +220,7 @@ def train():
     
     print("--- %s seconds ---" % (time.time() - start_time))
     print('Complete')
-    plot_res(final, title='DQN')
+    plot_res(final, title='DDQN with soft update')
     env.render()
 
 def random_search():

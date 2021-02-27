@@ -33,7 +33,7 @@ class CartPoleEnvironment:
         self._velocityLimit = (-10, 10)
         self._angleLimit = (-pi, pi)
         self._angularVelocityLimit = (-10, 10)
-        self.x_threshold = 3
+        self.x_threshold = 6
 
         self._action_range = action_range
         self._action_interval = action_interval
@@ -54,7 +54,7 @@ class CartPoleEnvironment:
         The function to reset the state of the simulator
         :return: self.state
         """
-        self.state = (0, 0, pi, 0)
+        self.state = tuple(np.random.normal(loc=np.array([0.0, 0.0, np.pi, 0.0]), scale=np.array([0.02, 0.02, 0.02, 0.02])))
         self.time = 0
         self.rewards.append(self.get_reward(self.state))
         self.state_list.append(self.state)
@@ -114,9 +114,6 @@ class CartPoleEnvironment:
 
         # calculate the reward
         reward = self.get_reward(self.state)
-        self.state_list.append(self.state)
-        self.rewards.append(reward)
-        self.state_reward_dict[self.state] = reward
 
         remaining_time = self._action_interval
         delta_t = self._update_interval
@@ -142,8 +139,8 @@ class CartPoleEnvironment:
 
             # displacement
             x = x + delta_t * v + 1 / 2 * delta_t ** 2 * alpha
-            if x > x_max or x < x_min:
-                x = np.clip(x, x_min, x_max)
+            # if x > x_max or x < x_min:
+            #     x = np.clip(x, x_min, x_max)
 
             # angular velocity
             omega = omega + delta_t * beta
@@ -162,13 +159,22 @@ class CartPoleEnvironment:
         next_state = (x, v, theta, omega)
         self.state = next_state
 
-        # episode termination
-        done = bool(
-            x < -self.x_threshold
-            or x > self.x_threshold
-        )
+        done = self._terminal(x)
+        # Reward_theta is 1 when theta is 0, 0 if between 90 and 270
+        # reward_theta = max(0, np.cos(theta))
+        # Reward_x is 0 when cart is at the edge of the screen, 1 when it's in the centre
+        reward_x = np.cos((x / self.x_threshold) * (np.pi / 2.0))
+        reward *= reward_x
+
+        self.state_list.append(self.state)
+        self.rewards.append(reward)
+        self.state_reward_dict[self.state] = reward
 
         return next_state, reward, done
+
+    # episode termination
+    def _terminal(self, x):
+        return(bool(abs(x) > self.x_threshold))
 
     def render(self):
         if self.use_renderer:
