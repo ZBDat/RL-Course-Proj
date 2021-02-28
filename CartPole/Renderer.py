@@ -96,7 +96,7 @@ class Renderer:
 
         plt.show()
 
-        return ani1, ani2,
+        return ani1, ani2
 
     def plot_accumulated_reward(self, accumulated_reward: List):
         fig2 = plt.figure()

@@ -3,7 +3,7 @@ from typing import Tuple, List, Dict, Any
 import numpy as np
 from numpy import pi
 
-from CartPole.Renderer import Renderer
+from Renderer import Renderer
 
 
 class CartPoleEnvironment:
@@ -33,6 +33,7 @@ class CartPoleEnvironment:
         self._velocityLimit = (-10, 10)
         self._angleLimit = (-pi, pi)
         self._angularVelocityLimit = (-10, 10)
+        self.x_threshold = 6
 
         self._action_range = action_range
         self._action_interval = action_interval
@@ -54,7 +55,7 @@ class CartPoleEnvironment:
         The function to reset the state of the simulator
         :return: self.state
         """
-        self.state = (0, 0, pi, 0)
+        self.state = tuple(np.random.normal(loc=np.array([0.0, 0.0, np.pi, 0.0]), scale=np.array([0.02, 0.02, 0.02, 0.02])))
         self.time = 0
         self.rewards.append(self.get_reward(self.state))
         self.state_list.append(self.state)
@@ -95,13 +96,14 @@ class CartPoleEnvironment:
 
         return reward
 
-    def step(self, action):
+    def step(self, action) -> Tuple[Tuple[float, float, float, float], float, bool]:
         """
         The function to calculate the state with a given action
         :return: self.state, reward
         """
         assert self.state is not None, "state is not defined!"
 
+        # Valid action
         if action < min(self._action_range) or action > max(self._action_range):
             action = np.clip(action, min(self._action_range), max(self._action_range))
 
@@ -120,9 +122,6 @@ class CartPoleEnvironment:
 
         # calculate the reward
         reward = self.get_reward(self.state)
-        self.state_list.append(self.state)
-        self.rewards.append(reward)
-        self.state_reward_dict[self.state] = reward
 
         remaining_time = self._action_interval
         delta_t = self._update_interval
@@ -160,17 +159,22 @@ class CartPoleEnvironment:
         next_state = (x, v, theta, omega)
         self.state = next_state
 
-        # episode termination
-        done = bool(
-            x < x_min
-            or x > x_max
-            or v < v_min
-            or v > v_max
-            or omega < omega_min
-            or omega > omega_max
-        )
+        done = self._terminal(x)
+
+        # reward_theta = (np.cos(theta)+1.0)/2.0
+        # Reward_x is 0 when cart is at the edge of the screen, 1 when it's in the centre
+        # reward_x = np.cos((x / 3) * (np.pi / 2.0))
+        # reward *= reward_x
+
+        self.state_list.append(self.state)
+        self.rewards.append(reward)
+        self.state_reward_dict[self.state] = reward
 
         return next_state, reward, done
+
+    # episode termination
+    def _terminal(self, x):
+        return(bool(abs(x) > self.x_threshold))
 
     def render(self):
         if self.use_renderer:
