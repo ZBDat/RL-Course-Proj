@@ -246,7 +246,7 @@ def train():
                 format(e, EPISODES, total_reward, total_reward / episode_steps, epsilon, time.perf_counter() - eps_start_time))
     
     print("--- Training time: %s seconds ---" % (time.time() - start_time))
-    plot_res(total_rewards, title='DDQN with soft update')
+    plot_res(total_rewards, average_rewards, title='DDQN')
     env.render()
 
 def plot_res(values, values2, title=''):   
