@@ -1,0 +1,5 @@
+numpy
+torch
+collections
+theano
+matplotlib
