@@ -139,8 +139,6 @@ class CartPoleEnvironment:
 
             # displacement
             x = x + delta_t * v + 1 / 2 * delta_t ** 2 * alpha
-            # if x > x_max or x < x_min:
-            #     x = np.clip(x, x_min, x_max)
 
             # angular velocity
             omega = omega + delta_t * beta
@@ -160,11 +158,11 @@ class CartPoleEnvironment:
         self.state = next_state
 
         done = self._terminal(x)
-        # Reward_theta is 1 when theta is 0, 0 if between 90 and 270
-        # reward_theta = max(0, np.cos(theta))
+
+        # reward_theta = (np.cos(theta)+1.0)/2.0
         # Reward_x is 0 when cart is at the edge of the screen, 1 when it's in the centre
-        reward_x = np.cos((x / self.x_threshold) * (np.pi / 2.0))
-        reward *= reward_x
+        # reward_x = np.cos((x / 3) * (np.pi / 2.0))
+        # reward *= reward_x
 
         self.state_list.append(self.state)
         self.rewards.append(reward)
