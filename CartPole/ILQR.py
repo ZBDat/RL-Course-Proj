@@ -347,7 +347,7 @@ if __name__ == "__main__":
        reward = env.get_reward(tuple(x[i].tolist()))
        reward_list.append(reward)
 
-    ani1, ani2 = renderer.animate(state_list=x.tolist(), reward_list=None)
+    ani1, ani2 = renderer.animate(state_list=x.tolist(), reward_list=reward_list)
 
     # plot the results
     fig1 = plt.figure()
