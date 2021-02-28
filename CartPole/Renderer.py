@@ -84,7 +84,7 @@ class Renderer:
 
         # Tweaking option: set interval higher: slow down the animation
         ani1 = animation.FuncAnimation(self.fig, self.plot_shapes, frames=state_list,
-                                       interval=50, blit=True, init_func=self.initialize_plot)
+                                       interval=30, blit=True, init_func=self.initialize_plot)
 
         if reward_list:
             self.reward_ax.set_xlim(0, len(reward_list))
@@ -97,6 +97,10 @@ class Renderer:
         plt.show()
 
         return ani1, ani2
+
+    def plot_accumulated_reward(self, accumulated_reward: List):
+        fig2 = plt.figure()
+        plt.plot(accumulated_reward)
 
 
 if __name__ == "__main__":
