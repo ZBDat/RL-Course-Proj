@@ -6,7 +6,7 @@ import theano.tensor as T
 from CartPole.Environment import CartPoleEnvironment
 from CartPole.Renderer import Renderer
 
-J_hist = []
+trajectory_cost = []
 
 
 class Dynamics:
@@ -170,11 +170,10 @@ def iter_info(dynamics: Dynamics, episode, x, optimal_cost, accepted, converged)
     :param converged: if the process already converged
     :return: None
     """
-    J_hist.append(optimal_cost)
-    info = "converged" if converged else ("accepted" if accepted else "failed")
-    final_state = dynamics.reduce_state(x[-1])
+    trajectory_cost.append(optimal_cost)
+    info = "converged, cost" if converged else ("accepted, cost" if accepted else "failed, cost")
     if episode % 10 == 0 or converged:
-        print("episode", episode, info, optimal_cost, final_state)
+        print("episode", episode, info, optimal_cost)
 
 
 def ilqr(cost: Cost, dynamics: Dynamics, init_state, num_episodes, horizon,
@@ -317,11 +316,10 @@ if __name__ == "__main__":
     pole_length = 0.6
 
     np.random.seed(1)
-    J_hist = []
 
     dynamics = Dynamics(dt=0.01)
     env = CartPoleEnvironment(action_interval=0.01)
-    renderer = Renderer()
+    renderer = Renderer(x_range=(-2.0, 2.0))
 
     # penalty for the state. take the T^-1 matrix from Lec. 10.
     Q = np.eye(dynamics.state_size)
@@ -341,7 +339,7 @@ if __name__ == "__main__":
     final_state = dynamics.augment_state(np.array([0.0, 0.0, 0.0, 0.0])).reshape(5)
     cost = Cost(Q, R, Q_terminal=Q_terminal, x_target=final_state)
 
-    x, u, accumulated_rewards = ilqr(cost, dynamics, init_state, num_episodes=500, horizon=280, iter_info=iter_info)
+    x, u, accumulated_rewards = ilqr(cost, dynamics, init_state, num_episodes=500, horizon=180, iter_info=iter_info)
     x = dynamics.reduce_state(x)
 
     reward_list = []
@@ -349,14 +347,22 @@ if __name__ == "__main__":
        reward = env.get_reward(tuple(x[i].tolist()))
        reward_list.append(reward)
 
-    ani = renderer.animate(state_list=x.tolist(), reward_list=reward_list)
+    ani1, ani2 = renderer.animate(state_list=x.tolist(), reward_list=None)
 
     # plot the results
-    inv = [-i for i in J_hist]
     fig1 = plt.figure()
-    plt.plot(inv)
-    plt.xlabel("Iteration")
-    plt.ylabel("inverse-cost")
-    plt.title("Total inverse cost")
+    _ = plt.plot(trajectory_cost)
+    _ = plt.xlabel("Iteration")
+    _ = plt.ylabel("cost")
+
+    t = np.arange(280) * dt
+    theta = np.unwrap(x[:, 0])  # Makes for smoother plots.
+    theta_dot = x[:, 1]
+
+    fig2 = plt.figure()
+    _ = plt.plot(theta, theta_dot)
+    _ = plt.xlabel("theta (rad)")
+    _ = plt.ylabel("theta_dot (rad/s)")
+    _ = plt.title("Phase Plot")
 
     plt.show()
