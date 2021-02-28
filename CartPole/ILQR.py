@@ -3,8 +3,8 @@ import numpy as np
 import theano
 import theano.tensor as T
 
-from CartPole.Environment import CartPoleEnvironment
-from CartPole.Renderer import Renderer
+from Environment import CartPoleEnvironment
+from Renderer import Renderer
 
 trajectory_cost = []
 
