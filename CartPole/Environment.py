@@ -144,13 +144,13 @@ class CartPoleEnvironment:
             v = v + delta_t * alpha
 
             # displacement
-            x = x + delta_t * v + 1 / 2 * delta_t ** 2 * alpha
+            x = x + delta_t * v
 
             # angular velocity
             omega = omega + delta_t * beta
 
             # angular displacement
-            theta = theta + delta_t * omega + 1 / 2 * delta_t ** 2 * beta
+            theta = theta + delta_t * omega
             theta = theta % (2 * pi)
 
             remaining_time -= delta_t

@@ -41,14 +41,12 @@ class Dynamics:
             F = u[..., 0]
 
             # Dynamical equation, in Deisenroth, M. P. (2010)
-            numerator1 = 3 * mp * l * theta_dot ** 2 * (-1* cos_theta) * sin_theta - 6 * (mp + mc) * g * sin_theta - 6 * (
-                    F - b * x_dot) * (-1 * cos_theta)
-            denominator1 = 4 * l * (mp + mc) - 3 * mp * l * (-1 * cos_theta) ** 2
-            theta_dot_dot = numerator1 / denominator1  # angular acceleration
+            temp = (F - 0.2 * x_dot + mp * l * theta_dot**2 * sin_theta) / (mc + mp)
+            numerator = g * sin_theta - cos_theta * temp
+            denominator = l * (4.0 / 3.0 - mp * cos_theta**2 / (mc + mp))
+            theta_dot_dot = numerator / denominator
 
-            numerator2 = -2 * mp * l * theta_dot ** 2 * sin_theta + 3 * mp * g * sin_theta * (-1 * cos_theta) + 4 * F - 4 * b * x_dot
-            denominator2 = denominator1 / l
-            x_dot_dot = numerator2 / denominator2  # linear acceleration
+            x_dot_dot = temp - mp * l * theta_dot_dot * cos_theta / (mc + mp)
 
             theta = T.arctan2(sin_theta, cos_theta)
             theta += theta_dot * dt
@@ -341,7 +339,7 @@ if __name__ == "__main__":
     final_state = dynamics.augment_state(np.array([0.0, 0.0, 0.0, 0.0])).reshape(5)
     cost = Cost(Q, R, Q_terminal=Q_terminal, x_target=final_state)
 
-    x, u, accumulated_rewards = ilqr(cost, dynamics, init_state, num_episodes=2000, horizon=600, iter_info=iter_info)
+    x, u, accumulated_rewards = ilqr(cost, dynamics, init_state, num_episodes=500, horizon=450, iter_info=iter_info)
     x = dynamics.reduce_state(x)
 
     reward_list = []
