@@ -41,12 +41,12 @@ class Dynamics:
             F = u[..., 0]
 
             # Dynamical equation, in Deisenroth, M. P. (2010)
-            numerator1 = -3 * mp * l * theta_dot ** 2 * cos_theta * sin_theta - 6 * (mp + mc) * g * sin_theta - 6 * (
-                    F - b * x_dot) * cos_theta
-            denominator1 = 4 * l * (mp + mc) - 3 * mp * l * cos_theta ** 2
+            numerator1 = 3 * mp * l * theta_dot ** 2 * (-1* cos_theta) * sin_theta - 6 * (mp + mc) * g * sin_theta - 6 * (
+                    F - b * x_dot) * (-1 * cos_theta)
+            denominator1 = 4 * l * (mp + mc) - 3 * mp * l * (-1 * cos_theta) ** 2
             theta_dot_dot = numerator1 / denominator1  # angular acceleration
 
-            numerator2 = 2 * mp * l * theta_dot ** 2 * sin_theta + 3 * mp * g * sin_theta * cos_theta + 4 * F - 4 * b * x_dot
+            numerator2 = -2 * mp * l * theta_dot ** 2 * sin_theta + 3 * mp * g * sin_theta * (-1 * cos_theta) + 4 * F - 4 * b * x_dot
             denominator2 = denominator1 / l
             x_dot_dot = numerator2 / denominator2  # linear acceleration
 
@@ -224,6 +224,7 @@ def ilqr(cost: Cost, dynamics: Dynamics, init_state, num_episodes, horizon,
 
             _, reward, _ = env.step(u[i][0])
             x[i + 1] = dynamics.f(x[i], u[i])
+            x[i + 1] = np.clip(x[i+1], -10.0,  10.0)
             f_x[i] = dynamics.f_x(x[i], u[i])
             f_u[i] = dynamics.f_u(x[i], u[i])
 
@@ -278,6 +279,7 @@ def ilqr(cost: Cost, dynamics: Dynamics, init_state, num_episodes, horizon,
             for i in range(horizon):
                 u_hat[i] = u[i] + alpha * k[i] + K[i].dot(x_hat[i] - x[i])
                 x_hat[i + 1] = dynamics.f(x_hat[i], u_hat[i])
+                x_hat[i + 1] = np.clip(x_hat[i + 1], -10.0, 10.0)
                 total_cost += cost.l(x_hat[i], u_hat[i])
 
             total_cost += cost.l(x_hat[-1], None, terminal=True)
@@ -339,7 +341,7 @@ if __name__ == "__main__":
     final_state = dynamics.augment_state(np.array([0.0, 0.0, 0.0, 0.0])).reshape(5)
     cost = Cost(Q, R, Q_terminal=Q_terminal, x_target=final_state)
 
-    x, u, accumulated_rewards = ilqr(cost, dynamics, init_state, num_episodes=500, horizon=180, iter_info=iter_info)
+    x, u, accumulated_rewards = ilqr(cost, dynamics, init_state, num_episodes=2000, horizon=600, iter_info=iter_info)
     x = dynamics.reduce_state(x)
 
     reward_list = []

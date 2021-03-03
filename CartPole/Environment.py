@@ -131,13 +131,13 @@ class CartPoleEnvironment:
                 delta_t = remaining_time
 
             # linear acceleration
-            alpha = (2 * m2 * l * omega ** 2 * np.sin(theta) - 3 * m2 * g * np.sin(theta) * np.cos(
-                theta) + 4 * action - 4 * b * v) / (4 * (m1 + m2) - 3 * m2 * np.cos(theta) ** 2)
+            alpha = (-2 * m2 * l * omega ** 2 * np.sin(theta) - 3 * m2 * g * np.sin(theta) * -1 * np.cos(
+                theta) + 4 * action - 4 * b * v) / (4 * (m1 + m2) + 3 * m2 * np.cos(theta) ** 2)
 
             # angular acceleration
-            beta = (3 * m2 * l * omega ** 2 * np.sin(theta) * np.cos(theta) - 6 * (m1 + m2) * g * np.sin(theta) + 6 * (
-                    action - b * v) * np.cos(
-                theta)) / (4 * l * (m1 + m2) - 3 * m2 * l * np.cos(theta) ** 2)
+            beta = (-3 * m2 * l * omega ** 2 * np.sin(theta) * (-1 * np.cos(theta)) - 6 * (m1 + m2) * g * np.sin(theta) + 6 * (
+                    action - b * v) * (-1) * np.cos(
+                theta)) / (4 * l * (m1 + m2) + 3 * m2 * l * np.cos(theta) ** 2)
 
             # Euler method
             # velocity
